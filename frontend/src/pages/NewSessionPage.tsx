@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mic, PlayCircle, Upload } from 'lucide-react'
+import { Mic, PlayCircle, Sparkles, Upload } from 'lucide-react'
 
 import { Panel, Spinner } from '@/components/ui/primitives'
 import { ENCOUNTER_TYPES } from '@/constants'
@@ -25,6 +25,30 @@ const MODES: { value: SessionMode; label: string; detail: string; icon: typeof M
   },
 ]
 
+export const SOAP_MODELS = [
+  {
+    id: 'qwen2.5:14b',
+    name: 'Qwen 2.5 14B',
+    tag: 'Recommended · High Precision',
+    detail: '14B parameters. Exceptional clinical entity extraction and comprehensive SOAP notes.',
+    badge: '14B',
+  },
+  {
+    id: 'gemma2:9b',
+    name: 'Gemma 2 9B',
+    tag: 'Google DeepMind · SOTA Clinical Reasoning',
+    detail: '9.2B parameters. Ultra-accurate diagnostic reasoning, fast inference, and structured clinical clarity.',
+    badge: '9B',
+  },
+  {
+    id: 'qwen2.5:7b',
+    name: 'Qwen 2.5 7B',
+    tag: 'Fast Outpatient Workstation',
+    detail: '7.6B parameters. Lightweight ambient SOAP structuring suited for low-spec environments.',
+    badge: '7B',
+  },
+]
+
 const DEFAULTS = {
   name: 'Consultation',
   patient_id: 'PT-1042',
@@ -45,6 +69,7 @@ export function NewSessionPage() {
     : (identityName || 'Dr. A. Rao')
 
   const [form, setForm] = useState({ ...DEFAULTS, doctor_name: activeDoctorName })
+  const [selectedModel, setSelectedModel] = useState<string>('qwen2.5:14b')
   const [mode, setMode] = useState<SessionMode>('MICROPHONE')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,10 +105,11 @@ export function NewSessionPage() {
         faculty_name: null,
         mode,
         audio_source: audioSource,
+        model_name: selectedModel,
       })
       if (autoStart) {
         await api.startSession(session.id)
-        pushToast({ kind: 'success', title: `${session.reference} started`, detail: 'Live clinical scribe is listening.' })
+        pushToast({ kind: 'success', title: `${session.reference} started`, detail: `Live scribe active with ${selectedModel}.` })
       } else {
         pushToast({ kind: 'success', title: `${session.reference} created` })
       }
@@ -104,7 +130,7 @@ export function NewSessionPage() {
             New Clinical Consultation
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Configure patient details and select an audio capture mode to begin ambient documentation.
+            Configure patient details, select clinical AI model, and start ambient documentation.
           </p>
         </div>
 
@@ -164,6 +190,48 @@ export function NewSessionPage() {
             <span>Attending Clinician:</span>
             <span className="font-semibold text-teal-700 dark:text-teal-400 text-xs">{activeDoctorName}</span>
           </div>
+        </Panel>
+
+        {/* AI SOAP Model Selector */}
+        <Panel title="AI Clinical Scribe Engine (SOAP Analysis Model)" bodyClassName="grid gap-2.5 p-4 sm:grid-cols-3">
+          {SOAP_MODELS.map(({ id, name, tag, detail, badge }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setSelectedModel(id)}
+              className={cn(
+                'flex flex-col justify-between rounded-xl border p-3.5 text-left transition relative overflow-hidden',
+                selectedModel === id
+                  ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/60 ring-1 ring-indigo-500/40 shadow-xs'
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700',
+              )}
+              aria-pressed={selectedModel === id}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <Sparkles className={cn("h-3.5 w-3.5", selectedModel === id ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400")} />
+                    {name}
+                  </span>
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold tracking-wider",
+                    selectedModel === id
+                      ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                  )}>
+                    {badge}
+                  </span>
+                </div>
+                <div className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">{tag}</div>
+                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{detail}</p>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
+                <span className={selectedModel === id ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-slate-400"}>
+                  {selectedModel === id ? "● Active Engine" : "Select"}
+                </span>
+              </div>
+            </button>
+          ))}
         </Panel>
 
         {/* Audio Input Source */}

@@ -57,7 +57,11 @@ async def create_session(payload: SessionCreate, db: DbSession, principal: Curre
         mode=payload.mode,
         audio_source=payload.audio_source or _DEFAULT_AUDIO_SOURCE[payload.mode],
         ai_mode=settings.effective_ai_mode.value,
-        model_name=settings.gemini_model if settings.gemini_configured else "medscribe-rules-v1",
+        model_name=(
+            payload.model_name
+            or (settings.local_llm_model if settings.effective_ai_mode.value in ("local", "ollama")
+                else (settings.gemini_model if settings.gemini_configured else "medscribe-rules-v1"))
+        ),
     )
     db.add(session)
     await db.flush()

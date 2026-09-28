@@ -28,17 +28,17 @@ _primary: LLMProvider | None = None
 _fallback: DeterministicLLMProvider | None = None
 
 
-def build_llm_provider() -> LLMProvider:
+def build_llm_provider(model_name: str | None = None) -> LLMProvider:
     """Gemini when a key is set; Local LLM when local/ollama; otherwise the rule-based mock."""
     mode = settings.effective_ai_mode
     if mode is AIMode.GEMINI:
         from app.services.llm.gemini_provider import GeminiProvider
 
-        return GeminiProvider()
+        return GeminiProvider(model=model_name)
     if mode in (AIMode.LOCAL, AIMode.OLLAMA):
         from app.services.llm.local_provider import LocalLLMProvider
 
-        return LocalLLMProvider()
+        return LocalLLMProvider(model=model_name)
     if settings.ai_mode is AIMode.GEMINI and not settings.gemini_configured:
         logger.warning("no_cloud_llm_configured_using_rule_based_provider")
     return DeterministicLLMProvider()

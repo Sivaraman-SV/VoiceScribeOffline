@@ -52,6 +52,7 @@ from app.services.llm import (
     LLMError,
     LLMProvider,
     OutputValidator,
+    build_llm_provider,
     get_fallback_provider,
     get_llm_provider,
 )
@@ -183,6 +184,7 @@ class SessionPipeline:
                     audio_source=session.audio_source,
                 ),
                 diarizer=build_diarization_provider(audio_source=session.audio_source),
+                llm=build_llm_provider(model_name=session.model_name),
             )
             self._runtimes[key] = runtime
         return runtime

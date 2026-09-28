@@ -23,6 +23,7 @@ class SessionCreate(BaseModel):
     faculty_name: str | None = None
     mode: SessionMode = SessionMode.DEMO
     audio_source: AudioSource | None = None
+    model_name: str | None = None
 
 
 class SpeakerOut(BaseModel):
