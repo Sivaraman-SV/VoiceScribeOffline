@@ -27,17 +27,28 @@ logger = get_logger(__name__)
 
 
 class IndicWhisperASRProvider(FasterWhisperProvider):
-    """Code-switching Faster-Whisper, or an AI4Bharat Transformers checkpoint."""
+    """Code-switching Faster-Whisper, or an Indic/Tanglish/Hinglish Transformers checkpoint."""
 
     name = "indic_whisper"
     is_mock = False
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        model_name: str | None = None,
+        use_transformers: bool | None = None,
+        provider_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self.indic_model_name = settings.indic_whisper_model
-        self.use_transformers = bool(settings.indic_whisper_use_transformers)
+        if provider_name:
+            self.name = provider_name
+        self.indic_model_name = model_name or settings.indic_whisper_model
+        if use_transformers is not None:
+            self.use_transformers = use_transformers
+        else:
+            self.use_transformers = bool(settings.indic_whisper_use_transformers) or ("/" in self.indic_model_name)
         self._pipeline: Any | None = None
-        self._engine_type = "faster_whisper"
+        self._engine_type = "transformers" if self.use_transformers else "faster_whisper"
 
     def _load_transformers(self) -> Any | None:
         if self._pipeline is not None:
@@ -50,10 +61,28 @@ class IndicWhisperASRProvider(FasterWhisperProvider):
             self.use_transformers = False
             return None
         device_str = "cuda:0" if torch.cuda.is_available() else "cpu"
-        logger.info("loading_indic_whisper_transformers", extra={"model": self.indic_model_name, "device": device_str})
-        self._pipeline = pipeline("automatic-speech-recognition", model=self.indic_model_name, device=device_str)
-        self._engine_type = "transformers"
-        return self._pipeline
+        torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        logger.info(
+            "loading_indic_whisper_transformers",
+            extra={"model": self.indic_model_name, "device": device_str, "provider": self.name},
+        )
+        try:
+            self._pipeline = pipeline(
+                "automatic-speech-recognition",
+                model=self.indic_model_name,
+                device=device_str,
+                torch_dtype=torch_dtype,
+                chunk_length_s=30,
+            )
+            self._engine_type = "transformers"
+            return self._pipeline
+        except Exception as exc:
+            logger.error(
+                "failed_loading_transformers_model",
+                extra={"model": self.indic_model_name, "error": str(exc)},
+            )
+            self.use_transformers = False
+            return None
 
     async def transcribe(self, audio_chunk: AudioFrame) -> list[ASRSegment]:
         if not audio_chunk.decoded or not audio_chunk.pcm:
@@ -73,24 +102,56 @@ class IndicWhisperASRProvider(FasterWhisperProvider):
         if self.fixed_language:
             generate_kwargs["language"] = self.fixed_language
 
-        output = pipeline_fn(audio_arr, generate_kwargs=generate_kwargs, return_timestamps=True)
-        text = clean_asr_text((output.get("text") or "").strip())
-        text = normalize_medical_transcript(text) if text else ""
-        if not text:
-            return []
+        try:
+            output = pipeline_fn(audio_arr, generate_kwargs=generate_kwargs, return_timestamps=True)
+        except Exception:
+            try:
+                output = pipeline_fn(audio_arr, generate_kwargs=generate_kwargs)
+            except Exception as e:
+                logger.warning("transformers_pipeline_inference_error", extra={"error": str(e)})
+                return []
 
         duration = len(audio_arr) / float(audio_chunk.sample_rate)
-        return [
-            ASRSegment(
-                id=f"asr_{audio_chunk.sequence:04d}_00",
-                text=text,
-                start_time=round(audio_chunk.start_time, 3),
-                end_time=round(audio_chunk.start_time + duration, 3),
-                confidence=0.92,
-                language=self.fixed_language or "auto",
-                words=[],
-            )
-        ]
+        results: list[ASRSegment] = []
+
+        chunks = output.get("chunks") if isinstance(output, dict) else None
+        if chunks:
+            for idx, ch in enumerate(chunks):
+                raw_text = clean_asr_text((ch.get("text") or "").strip())
+                norm_text = normalize_medical_transcript(raw_text) if raw_text else ""
+                if not norm_text:
+                    continue
+                ts = ch.get("timestamp") or (0.0, duration)
+                start_t = ts[0] if (isinstance(ts, (list, tuple)) and ts[0] is not None) else 0.0
+                end_t = ts[1] if (isinstance(ts, (list, tuple)) and len(ts) > 1 and ts[1] is not None) else duration
+                results.append(
+                    ASRSegment(
+                        id=f"asr_{audio_chunk.sequence:04d}_{idx:02d}",
+                        text=norm_text,
+                        start_time=round(audio_chunk.start_time + start_t, 3),
+                        end_time=round(audio_chunk.start_time + end_t, 3),
+                        confidence=0.92,
+                        language=self.fixed_language or "auto",
+                        words=[],
+                    )
+                )
+
+        if not results:
+            text = clean_asr_text((output.get("text") if isinstance(output, dict) else str(output) or "").strip())
+            text = normalize_medical_transcript(text) if text else ""
+            if text:
+                results.append(
+                    ASRSegment(
+                        id=f"asr_{audio_chunk.sequence:04d}_00",
+                        text=text,
+                        start_time=round(audio_chunk.start_time, 3),
+                        end_time=round(audio_chunk.start_time + duration, 3),
+                        confidence=0.92,
+                        language=self.fixed_language or "auto",
+                        words=[],
+                    )
+                )
+        return results
 
     def describe(self) -> dict[str, object]:
         info = super().describe()

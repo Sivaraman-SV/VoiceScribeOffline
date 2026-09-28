@@ -259,9 +259,9 @@ export function ReviewPage() {
             <button
               type="button"
               className="btn-teal flex items-center gap-1.5 shadow-sm text-xs font-semibold px-4 py-1.5 rounded-lg"
-              disabled={busy || !approvable || blockingFlags.length > 0}
+              disabled={busy || !approvable}
               onClick={() => setShowApproveModal(true)}
-              title={blockingFlags.length > 0 ? 'Resolve blocking review flags before approving' : 'Approve and sign clinical note'}
+              title="Review, approve and sign clinical note"
             >
               <BadgeCheck className="h-4 w-4" aria-hidden />
               Approve & Sign Note

@@ -129,6 +129,10 @@ async def init_database(create_schema: bool | None = None, url: str | None = Non
             await _migrate_sqlite_schema(engine)
 
         logger.info("schema_ready", extra={"dialect": db_state.dialect})
+        try:
+            await _seed_default_users(db_state.session_factory)
+        except Exception as seed_err:
+            logger.warning("database_seeding_skipped", extra={"error": str(seed_err)})
 
     return db_state
 
@@ -171,6 +175,52 @@ async def _migrate_sqlite_schema(engine: AsyncEngine) -> None:
                         logger.info("sqlite_column_added", extra={"table": "sessions", "column": col_name})
                     except Exception as exc:
                         logger.warning("sqlite_migration_skipped", extra={"table": "sessions", "column": col_name, "error": str(exc)})
+
+
+async def _seed_default_users(session_factory: async_sessionmaker[AsyncSession]) -> None:
+    """Seed initial clinical administrator and default physician credentials."""
+    from app.core.security import hash_password
+    from app.models.enums import UserRole
+    from app.models.user import User
+
+    async with session_factory() as session:
+        # 1. Default Doctor Account
+        doc_query = text("SELECT id FROM users WHERE lower(doctor_id) = 'doc-101' OR lower(email) = 'doctor@simshospital.com'")
+        doc_res = (await session.execute(doc_query)).scalar_one_or_none()
+        if not doc_res:
+            session.add(
+                User(
+                    doctor_id="DOC-101",
+                    email="doctor@simshospital.com",
+                    full_name="Dr. S. Ramesh",
+                    department="General Medicine",
+                    password_hash=hash_password("doctor123"),
+                    role=UserRole.DOCTOR,
+                    is_active=True,
+                    created_by="system",
+                )
+            )
+            logger.info("seeded_default_doctor_account", extra={"doctor_id": "DOC-101"})
+
+        # 2. Default Administrator Account
+        admin_query = text("SELECT id FROM users WHERE lower(doctor_id) = 'admin' OR lower(email) = 'admin@simshospital.com'")
+        admin_res = (await session.execute(admin_query)).scalar_one_or_none()
+        if not admin_res:
+            session.add(
+                User(
+                    doctor_id="ADMIN",
+                    email="admin@simshospital.com",
+                    full_name="Hospital Administrator",
+                    department="Hospital Administration",
+                    password_hash=hash_password("admin123"),
+                    role=UserRole.ADMIN,
+                    is_active=True,
+                    created_by="system",
+                )
+            )
+            logger.info("seeded_default_admin_account", extra={"email": "admin@simshospital.com"})
+
+        await session.commit()
 
 
 async def dispose_database() -> None:

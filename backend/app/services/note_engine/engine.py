@@ -150,13 +150,16 @@ class NoteStateEngine:
                 setattr(content, group_key, entities[group_key])
 
         for issue in validated.issues:
-            if issue.severity == "ERROR":
+            # Avoid duplicate flags for the same section
+            if any(f.get("section") == issue.target for f in review_flags):
+                continue
+            if issue.severity in ("ERROR", "WARNING"):
                 review_flags.append(
                     {
                         "section": issue.target,
                         "label": SECTION_LABELS.get(issue.target, issue.target),
                         "reason": issue.message,
-                        "severity": "ERROR",
+                        "severity": issue.severity,
                     }
                 )
 
@@ -172,6 +175,16 @@ class NoteStateEngine:
                     "severity": "WARNING",
                 }
             )
+
+        # Deduplicate flags by (section, reason)
+        deduped_flags = []
+        seen_flags = set()
+        for flag in review_flags:
+            flag_key = (flag.get("section"), flag.get("reason"))
+            if flag_key not in seen_flags:
+                seen_flags.add(flag_key)
+                deduped_flags.append(flag)
+        review_flags = deduped_flags
 
         next_version = version + 1 if changed else version
         content.version = next_version

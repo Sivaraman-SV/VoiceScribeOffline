@@ -29,6 +29,8 @@ class ASRProviderName(str, Enum):
     FASTER_WHISPER = "faster_whisper"
     INDIC_WHISPER = "indic_whisper"
     INDIC_CONFORMER = "indic_conformer"
+    TANGLISH_WHISPER = "tanglish_whisper"
+    HINGLISH_WHISPER = "hinglish_whisper"
     MOCK = "mock"
 
 
@@ -98,6 +100,9 @@ class Settings(BaseSettings):
     asr_compute_type: str = "int8"
     indic_whisper_model: str = "ai4bharat/whisper-medium-hi_alldata_multigpu"
     indic_whisper_use_transformers: bool = False
+    tanglish_whisper_model: str = "Badri0510/whisper-tanglish-ultra-8000"
+    tanglish_med_model: str = "surendirakrishna/OHM-Tanglish-MedASR-1.7B"
+    hinglish_whisper_model: str = "Oriserve/Whisper-Hindi2Hinglish-Apex"
     indic_conformer_model: str = "ai4bharat/indicconformer_stt_multi_hybrid_rnnt_600m"
     # "auto" = detect per utterance (code-switching). A code such as "ta" forces
     # one language for every utterance.
@@ -187,11 +192,14 @@ class Settings(BaseSettings):
     def pipeline_summary(self) -> dict[str, str]:
         """Single source of truth for the offline stack shown in Settings."""
         asr = self.asr_provider.value
-        asr_model = (
-            self.indic_whisper_model
-            if asr == "indic_conformer" or (asr == "indic_whisper" and self.indic_whisper_use_transformers)
-            else self.faster_whisper_model
-        )
+        if asr == "tanglish_whisper":
+            asr_model = self.tanglish_whisper_model
+        elif asr == "hinglish_whisper":
+            asr_model = self.hinglish_whisper_model
+        elif asr == "indic_conformer" or (asr == "indic_whisper" and self.indic_whisper_use_transformers):
+            asr_model = self.indic_whisper_model
+        else:
+            asr_model = self.faster_whisper_model
         return {
             "target_gpu": "NVIDIA RTX 4050 laptop (6 GB VRAM)",
             "audio": "Browser 16 kHz mono WAV → local preprocess (VAD)",

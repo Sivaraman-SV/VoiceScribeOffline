@@ -513,27 +513,27 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
     meta_data = [
         [
             Paragraph("Appointment Date & Time", meta_label_style),
-            Paragraph(f": {appt_date}", meta_val_style),
+            Paragraph(f": {_escape(str(appt_date))}", meta_val_style),
             Paragraph("Print Date Time", meta_label_style),
-            Paragraph(f": {print_date}", meta_val_style),
+            Paragraph(f": {_escape(str(print_date))}", meta_val_style),
         ],
         [
             Paragraph("HH No.", meta_label_style),
-            Paragraph(f": {hh_no}", meta_val_style),
+            Paragraph(f": {_escape(str(hh_no))}", meta_val_style),
             Paragraph("Patient Name", meta_label_style),
-            Paragraph(f": {patient_name}", meta_val_style),
+            Paragraph(f": {_escape(str(patient_name))}", meta_val_style),
         ],
         [
             Paragraph("Gender", meta_label_style),
-            Paragraph(f": {gender}", meta_val_style),
+            Paragraph(f": {_escape(str(gender))}", meta_val_style),
             Paragraph("Age", meta_label_style),
-            Paragraph(f": {age}", meta_val_style),
+            Paragraph(f": {_escape(str(age))}", meta_val_style),
         ],
         [
             Paragraph("Consult Name", meta_label_style),
-            Paragraph(f": {consult_name}", meta_val_style),
+            Paragraph(f": {_escape(str(consult_name))}", meta_val_style),
             Paragraph("Speciality", meta_label_style),
-            Paragraph(f": {speciality}", meta_val_style),
+            Paragraph(f": {_escape(str(speciality))}", meta_val_style),
         ],
     ]
 
@@ -591,9 +591,9 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
                 text = "---"
 
         # Pink circular badge icon with bold section heading
-        sec_header_text = f"<font color='#e11d48' size='9'>&#9679;</font> &nbsp;<b>{label}</b>"
+        sec_header_text = f"<font color='#e11d48' size='9'>&#9679;</font> &nbsp;<b>{_escape(label)}</b>"
         story.append(Paragraph(sec_header_text, sec_heading_style))
-        story.append(Paragraph(text, sec_body_style))
+        story.append(Paragraph(_escape(text), sec_body_style))
 
     story.append(Spacer(1, 2 * mm))
 
@@ -612,12 +612,12 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
     if rx_prescriptions:
         for rx in rx_prescriptions:
             rx_rows.append([
-                Paragraph(rx.get("date", appt_date), table_cell_style),
-                Paragraph(rx.get("drug_name", ""), table_cell_style),
-                Paragraph(rx.get("dosage", "As directed"), table_cell_style),
-                Paragraph(rx.get("frequency", "As prescribed"), table_cell_style),
-                Paragraph(rx.get("route", "Oral"), table_cell_style),
-                Paragraph(rx.get("duration", "As directed"), table_cell_style),
+                Paragraph(_escape(str(rx.get("date", appt_date))), table_cell_style),
+                Paragraph(_escape(str(rx.get("drug_name", ""))), table_cell_style),
+                Paragraph(_escape(str(rx.get("dosage", "As directed"))), table_cell_style),
+                Paragraph(_escape(str(rx.get("frequency", "As prescribed"))), table_cell_style),
+                Paragraph(_escape(str(rx.get("route", "Oral"))), table_cell_style),
+                Paragraph(_escape(str(rx.get("duration", "As directed"))), table_cell_style),
             ])
         rx_table_style = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fafc")),
@@ -630,7 +630,7 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
     else:
         # Cleanly show that no new medications were prescribed in this visit
         rx_rows.append([
-            Paragraph(appt_date, table_cell_style),
+            Paragraph(_escape(str(appt_date)), table_cell_style),
             Paragraph("<font color='#64748b'><i>No new medications prescribed by physician during this encounter.</i></font>", table_cell_style),
             Paragraph("", table_cell_style),
             Paragraph("", table_cell_style),
@@ -665,10 +665,10 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
     if doc_orders:
         for order in doc_orders:
             order_rows.append([
-                Paragraph(order.get("date", appt_date), table_cell_style),
-                Paragraph(order.get("order_type", "Lab / Diagnostic"), table_cell_style),
-                Paragraph(order.get("order_name", ""), table_cell_style),
-                Paragraph(order.get("purpose", "Diagnostic evaluation"), table_cell_style),
+                Paragraph(_escape(str(order.get("date", appt_date))), table_cell_style),
+                Paragraph(_escape(str(order.get("order_type", "Lab / Diagnostic"))), table_cell_style),
+                Paragraph(_escape(str(order.get("order_name", ""))), table_cell_style),
+                Paragraph(_escape(str(order.get("purpose", "Diagnostic evaluation"))), table_cell_style),
             ])
         order_table_style = [
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fafc")),
@@ -681,7 +681,7 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
     else:
         # Cleanly show that no diagnostic investigations were ordered in this visit
         order_rows.append([
-            Paragraph(appt_date, table_cell_style),
+            Paragraph(_escape(str(appt_date)), table_cell_style),
             Paragraph("<font color='#64748b'><i>No diagnostic investigations or procedures ordered during this encounter.</i></font>", table_cell_style),
             Paragraph("", table_cell_style),
             Paragraph("", table_cell_style),

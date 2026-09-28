@@ -19,6 +19,8 @@ venv/
 *.db-shm
 *.sqlite3
 backend/storage/
+backend/models/
+models/
 backend/tests/medscribe_test.db*
 graphify-out/
 

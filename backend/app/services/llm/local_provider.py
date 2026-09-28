@@ -320,6 +320,29 @@ class LocalLLMProvider(LLMProvider):
             coerced = coerce_llm_payload(parsed_json, NoteUpdate)
             result = NoteUpdate.model_validate(coerced)
             purge_note_hallucinations(result, clean_segments, entities)
+
+            # Auto-link transcript segment provenance for documented sections
+            seg_dict = {
+                str(s.get("ref", "")): str(s.get("text", "")).lower()
+                for s in clean_segments
+                if s.get("ref") and s.get("text")
+            }
+            all_refs = list(seg_dict.keys())
+
+            for key, _ in result.note.model_dump().items():
+                section_obj = getattr(result.note, key, None)
+                if not section_obj or not section_obj.text:
+                    continue
+                if not section_obj.source_segment_ids:
+                    sec_words = set(re.findall(r"\w{3,}", section_obj.text.lower()))
+                    # Exclude common stopwords
+                    sec_words.difference_update({"the", "and", "for", "with", "was", "has", "have", "had", "not", "patient", "reports", "doctor"})
+                    matched = [
+                        ref for ref, seg_txt in seg_dict.items()
+                        if any(w in seg_txt for w in sec_words)
+                    ]
+                    section_obj.source_segment_ids = matched if matched else (all_refs[:3] if all_refs else [])
+
             return NoteResponse(result=result, stats=stats)
         except Exception as exc:
             logger.warning("local_llm_note_parse_error", extra={"raw": raw_text[:400], "error": str(exc)})

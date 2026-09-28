@@ -195,6 +195,31 @@ export function LoginPage() {
             </button>
           </div>
 
+          {/* Quick-Access 1-Click Credentials Banner */}
+          <div className="mb-4 flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-teal-500/10 border border-teal-500/20 text-2xs text-teal-300">
+            <div className="leading-tight">
+              <span className="font-bold text-teal-200">
+                {activeTab === 'DOCTOR' ? 'Default Doctor:' : 'Default Admin:'}
+              </span>{' '}
+              {activeTab === 'DOCTOR' ? 'DOC-101 / doctor123' : 'admin@simshospital.com / admin123'}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab === 'DOCTOR') {
+                  setDoctorIdentifier('DOC-101')
+                  setDoctorPassword('doctor123')
+                } else {
+                  setAdminEmail('admin@simshospital.com')
+                  setAdminPassword('admin123')
+                }
+              }}
+              className="shrink-0 px-2.5 py-1 bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 rounded-lg font-bold text-2xs transition"
+            >
+              1-Click Fill
+            </button>
+          </div>
+
           {/* Feedback alerts */}
           {error && (
             <div className="mb-5 flex items-start gap-2.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs animate-fade-in-down">

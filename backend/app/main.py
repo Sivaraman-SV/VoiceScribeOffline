@@ -9,10 +9,11 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
-from app.core.config import settings
+from app.core.config import REPO_ROOT, settings
 from app.core.database import dispose_database, init_database
 from app.core.logging import configure_logging, get_logger, metrics, request_id_var
 from app.websocket.routes import router as websocket_router
@@ -117,14 +118,28 @@ app.include_router(api_router, prefix=settings.api_prefix)
 app.include_router(websocket_router)
 
 
-@app.get("/", tags=["system"])
-async def root() -> dict:
-    return {
-        "name": settings.app_name,
-        "version": settings.app_version,
-        "purpose": "Clinical documentation assistant",
-        "not_a_diagnostic_system": True,
-        "docs": "/docs",
-        "api": settings.api_prefix,
-        "websocket": "/ws/sessions/{session_id}",
-    }
+frontend_dist = REPO_ROOT / "frontend" / "dist"
+if frontend_dist.is_dir() and (frontend_dist / "index.html").is_file():
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}", tags=["frontend"])
+    async def serve_spa(full_path: str):
+        if full_path:
+            file_candidate = frontend_dist / full_path
+            if file_candidate.is_file():
+                return FileResponse(file_candidate)
+        return FileResponse(frontend_dist / "index.html")
+else:
+    @app.get("/", tags=["system"])
+    async def root() -> dict:
+        return {
+            "name": settings.app_name,
+            "version": settings.app_version,
+            "purpose": "Clinical documentation assistant",
+            "not_a_diagnostic_system": True,
+            "docs": "/docs",
+            "api": settings.api_prefix,
+            "websocket": "/ws/sessions/{session_id}",
+        }
