@@ -310,6 +310,9 @@ def is_prompt_echo(text: str, prompt: str | None) -> bool:
     return overlap / len(words) >= 0.6
 
 
+_CYRILLIC_OR_GREEK = re.compile(r"[\u0400-\u04FF\u0370-\u03FF]+")
+
+
 def clean_asr_text(text: str, prompt: str | None = None) -> str:
     """Repair one ASR segment; returns ``""`` for output that must be discarded."""
     text = (text or "").strip()
@@ -319,6 +322,7 @@ def clean_asr_text(text: str, prompt: str | None = None) -> str:
         return ""
     if is_prompt_echo(text, prompt):
         return ""
+    text = _CYRILLIC_OR_GREEK.sub("", text)
     text = _collapse_repetitions(text)
     return romanize_loanwords(text)
 

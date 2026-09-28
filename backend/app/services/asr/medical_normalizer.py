@@ -64,6 +64,13 @@ _PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(?:sp\s*o2|spo2|oxygen\s*saturation)\b", re.IGNORECASE), "SpO2"),
     (re.compile(r"\b(?:ecg|e\s*\.?\s*c\s*\.?\s*g\.?)\b", re.IGNORECASE), "ECG"),
     (re.compile(r"\b(?:x\s*ray|x-ray)\b", re.IGNORECASE), "X-Ray"),
+
+    # --- Common Tanglish Acoustic Mishear Corrections ---
+    (re.compile(r"\b(?:rinnala|rin\s*nala)\b", re.IGNORECASE), "பின்னால"),
+    (re.compile(r"\b(?:தலவிலி|தலவிலியா)\b", re.IGNORECASE), "தலைவலியா"),
+    (re.compile(r"\b(?:ableu\s*severe|avlo\s*severe)\b", re.IGNORECASE), "அவ்வளவு severe"),
+    (re.compile(r"\b(?:puanakonsoor|puanakonsur)\b", re.IGNORECASE), "பின்னால கொஞ்சம்"),
+    (re.compile(r"\b(?:kojnjyom|koinjyom|koncho)\b", re.IGNORECASE), "கொஞ்சம்"),
 ]
 
 

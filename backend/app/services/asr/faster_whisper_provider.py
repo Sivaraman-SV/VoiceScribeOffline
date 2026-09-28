@@ -150,9 +150,9 @@ class FasterWhisperProvider(ASRProvider):
                 word_timestamps=True,
                 condition_on_previous_text=False,
                 initial_prompt=prompt,
-                # Fall back to sampling only when greedy/beam output is a
-                # repetition loop or low confidence - the standard Whisper recipe.
-                temperature=(0.0, 0.2, 0.4, 0.6),
+                # Use strict greedy decoding (temperature=0.0) to prevent fallback sampling
+                # from introducing Cyrillic tokens or hallucinated repetitions in Indic languages.
+                temperature=0.0,
                 compression_ratio_threshold=2.4,
                 log_prob_threshold=-1.0,
                 no_speech_threshold=0.6,
