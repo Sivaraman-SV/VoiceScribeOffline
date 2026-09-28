@@ -99,7 +99,15 @@ class Settings(BaseSettings):
     indic_whisper_model: str = "ai4bharat/whisper-medium-hi_alldata_multigpu"
     indic_whisper_use_transformers: bool = False
     indic_conformer_model: str = "ai4bharat/indicconformer_stt_multi_hybrid_rnnt_600m"
+    # "auto" = detect per utterance (code-switching). A code such as "ta" forces
+    # one language for every utterance.
     indic_asr_language: str = "auto"
+    # Languages spoken in the clinic. Per-utterance detection is restricted to
+    # these, so Tamil is not mistaken for Malayalam or Hindi for Urdu.
+    asr_languages: str = "ta,en,hi"
+    # Code-mixed example sentences that keep English words in Latin script.
+    asr_style_prompts: bool = True
+    asr_beam_size: int = 5
     # Never list drug names here — Whisper copies initial_prompt into the transcript.
     indic_asr_prompt_biasing: str = ""
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
@@ -180,14 +188,15 @@ class Settings(BaseSettings):
         """Single source of truth for the offline stack shown in Settings."""
         asr = self.asr_provider.value
         asr_model = (
-            self.faster_whisper_model
-            if asr in ("faster_whisper", "indic_whisper")
-            else self.indic_whisper_model
+            self.indic_whisper_model
+            if asr == "indic_conformer" or (asr == "indic_whisper" and self.indic_whisper_use_transformers)
+            else self.faster_whisper_model
         )
         return {
             "target_gpu": "NVIDIA RTX 4050 laptop (6 GB VRAM)",
             "audio": "Browser 16 kHz mono WAV → local preprocess (VAD)",
             "asr": f"{asr} / {asr_model} ({self.asr_compute_type} on {self.asr_device})",
+            "languages": f"{self.asr_languages} ({'per-utterance code-switching' if self.indic_asr_language in ('auto', '') else self.indic_asr_language})",
             "diarization": self.diarization_provider.value,
             "llm": f"{self.effective_ai_mode.value} / {self.local_llm_model if self.effective_ai_mode.value in ('local', 'ollama') else self.gemini_model}",
             "grounding": "Entities and plan/assessment must match the transcript or they are dropped",

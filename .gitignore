@@ -20,6 +20,7 @@ venv/
 *.sqlite3
 backend/storage/
 backend/tests/medscribe_test.db*
+graphify-out/
 
 # --- node / frontend ---------------------------------------------------------
 node_modules/

@@ -246,9 +246,11 @@ class AudioPreprocessingService:
             mono = self.to_mono(samples, channels)
             resampled = self.resample(mono, rate)
             filtered = self.high_pass(resampled, cutoff_hz=80.0, sample_rate=self.target_sample_rate)
-            regions, ratio, noise_floor = self.detect_voice_activity(filtered)
-            cleaned = self.suppress_noise(filtered, noise_floor)
-            cleaned = self.echo_canceller.process(cleaned)
+            regions, ratio, _noise_floor = self.detect_voice_activity(filtered)
+            # No noise gate here: attenuating "quiet" frames clips soft speech and
+            # word onsets, which costs far more ASR accuracy than the noise it
+            # removes. Whisper is trained on unprocessed audio.
+            cleaned = self.echo_canceller.process(filtered)
             duration = len(cleaned) / self.target_sample_rate if cleaned else (raw.duration_seconds or 0.0)
 
             return AudioFrame(

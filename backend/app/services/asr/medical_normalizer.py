@@ -9,6 +9,8 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
+_ALREADY_EXPANDED = r"(?<!OD \()(?<!BD \()(?<!TDS \()(?<!SOS \()"
+
 # Regex replacement rules: (pattern, replacement)
 # Carefully bounded with \b to avoid replacing substrings inside longer words.
 # Do NOT map everyday English ("tell me") onto drug names — that invents medications.
@@ -44,11 +46,16 @@ _PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(?:becosules|beco\s*sules)\b", re.IGNORECASE), "Becosules"),
 
     # --- Dosages & Frequencies ---
+    # The lookbehinds keep these idempotent: the pipeline normalises text that a
+    # provider has already normalised, and "OD (once daily)" must not become
+    # "OD (OD (once daily))".
     (re.compile(r"\b(\d+)\s*(?:mili\s*gram|milli\s*gram|mili\s*grams|milli\s*grams)\b", re.IGNORECASE), r"\1 mg"),
-    (re.compile(r"\b(?:once\s*a\s*day|once\s*daily|one\s*time\s*daily)\b", re.IGNORECASE), "OD (once daily)"),
-    (re.compile(r"\b(?:twice\s*a\s*day|twice\s*daily|two\s*times\s*a\s*day)\b", re.IGNORECASE), "BD (twice daily)"),
-    (re.compile(r"\b(?:thrice\s*a\s*day|thrice\s*daily|three\s*times\s*a\s*day)\b", re.IGNORECASE), "TDS (thrice daily)"),
-    (re.compile(r"\b(?:when\s*needed|as\s*needed|if\s*pain|jarurat\s*padne\s*par)\b", re.IGNORECASE), "SOS (as needed)"),
+    (re.compile(_ALREADY_EXPANDED + r"\b(?:once\s*a\s*day|once\s*daily|one\s*time\s*daily)\b", re.IGNORECASE), "OD (once daily)"),
+    (re.compile(_ALREADY_EXPANDED + r"\b(?:twice\s*a\s*day|twice\s*daily|two\s*times\s*a\s*day)\b", re.IGNORECASE), "BD (twice daily)"),
+    (re.compile(_ALREADY_EXPANDED + r"\b(?:thrice\s*a\s*day|thrice\s*daily|three\s*times\s*a\s*day)\b", re.IGNORECASE), "TDS (thrice daily)"),
+    # "if pain" is deliberately not here: "if pain persists, come back" is not
+    # an as-needed instruction.
+    (re.compile(_ALREADY_EXPANDED + r"\b(?:when\s*needed|as\s*needed|jarurat\s*padne\s*par|zaroorat\s*padne\s*par)\b", re.IGNORECASE), "SOS (as needed)"),
 
     # --- Clinical Abbreviations & Vitals ---
     (re.compile(r"\b(?:blood\s*pressure|b\s*\.?\s*p\.?)\b", re.IGNORECASE), "BP"),

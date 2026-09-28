@@ -53,7 +53,9 @@ After that, use `START_VOICESCRIBE.bat` to open the app again.
 | `AI_MODE` | `local` | Ollama, not Gemini |
 | `LOCAL_LLM_MODEL` | `qwen2.5:7b` | Note model on GPU |
 | `ASR_PROVIDER` | `faster_whisper` | CTranslate2 Whisper |
-| `FASTER_WHISPER_MODEL` | `large-v3-turbo` | Multilingual, including mixed Indian + English |
+| `FASTER_WHISPER_MODEL` | `large-v3-turbo` | Multilingual, including mixed Indian + English. `large-v3` is more accurate for Tamil but ~2x slower on CPU. Do not use `small`/`base` for Tamil |
+| `ASR_LANGUAGES` | `ta,en,hi` | Language is detected per utterance among these only (Tanglish / Hinglish code-switching) |
+| `INDIC_ASR_LANGUAGE` | `auto` | `auto` = per-utterance detection; a code like `ta` forces one language |
 | `ASR_DEVICE` | `cpu` | Leaves VRAM for Qwen 7B |
 | `ASR_COMPUTE_TYPE` | `int8` | Fast enough on CPU |
 | `DIARIZATION_PROVIDER` | `local` | CPU |
