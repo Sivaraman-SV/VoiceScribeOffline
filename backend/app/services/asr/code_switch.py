@@ -37,9 +37,9 @@ _LANGUAGE_ALIASES: dict[str, str] = {
 # numbers), so that if Whisper ever echoes one it cannot invent a finding - and
 # ``is_prompt_echo`` drops that echo anyway.
 _STYLE_PROMPTS: dict[str, str] = {
-    "ta": "சரி doctor, next week follow up-க்கு வரேன். Reports எல்லாம் எடுத்துட்டு வரேன்.",
-    "hi": "ठीक है doctor, next week follow up के लिए आऊँगा। Reports लेकर आऊँगा।",
-    "en": "Okay doctor, next week follow up-ku varen. Reports ellam kondu varen. Theek hai, main aa jaunga.",
+    "ta": "doctor, எனக்கு 2 days-ஆ severe headache and chest pain இருக்கு. Paracetamol Dolo 650 tablet போட்டேன். BP check பண்ணனும்.",
+    "hi": "doctor, मुझे 2 days से fever and chest pain है। मैंने Paracetamol Dolo 650 tablet ली थी। BP check करना है।",
+    "en": "doctor, I have had a headache and chest discomfort for two days. I took a Dolo 650 tablet.",
 }
 
 
@@ -83,12 +83,28 @@ class LanguagePolicy:
         total = sum(scores.values()) or 1.0
         normalized = {language: score / total for language, score in scores.items()}
 
+        # CRITICAL: Whisper's acoustic classifier has a massive English prior.
+        # In a Tamil clinic, code-mixed utterances often score 0.10-0.40 for 'ta'
+        # while 'en' scores 0.55-0.75 simply because of English loanwords.
+        # However, a clear English sentence scores en >= 0.85.
+        # When 'ta' is present and 'en' is not overwhelmingly dominant (< 0.85):
+        # decode as 'ta' so Tamil words are written in authentic Tamil script
+        # and English words stay in Latin script.
+        if "ta" in self.allowed and normalized.get("ta", 0.0) >= 0.10 and normalized.get("en", 0.0) < 0.85:
+            self.previous = "ta"
+            self.counts["ta"] = self.counts.get("ta", 0) + 1
+            return "ta", round(normalized.get("ta", 0.0), 4)
+
+        if "hi" in self.allowed and normalized.get("hi", 0.0) >= 0.10 and normalized.get("en", 0.0) < 0.85:
+            self.previous = "hi"
+            self.counts["hi"] = self.counts.get("hi", 0) + 1
+            return "hi", round(normalized.get("hi", 0.0), 4)
+
         biased = dict(normalized)
         if self.previous in biased:
             bonus = self.stickiness * (2.0 if duration < self.short_utterance_seconds else 1.0)
             biased[self.previous] += bonus
-        # A language that has dominated the session so far wins close calls, so a
-        # Tanglish consult does not grow stray Hindi lines (or vice versa).
+        # A language that has dominated the session so far wins close calls
         if self.counts:
             dominant = max(self.counts, key=self.counts.__getitem__)
             if dominant in biased and dominant != "en":
@@ -158,6 +174,17 @@ _TAMIL_LOANWORDS: dict[str, str] = {
     "ஹார்ட்": "heart",
     "கிட்னி": "kidney",
     "லிவர்": "liver",
+    "பாராசிட்டமால்": "Paracetamol",
+    "பாராசிடமால்": "Paracetamol",
+    "டொலோ": "Dolo",
+    "டோலோ": "Dolo",
+    "செஸ்ட் பெயின்": "chest pain",
+    "டிஸ்கம்ஃபோர்ட்": "discomfort",
+    "ரிலீஃப்": "relief",
+    "பிராப்ளம்": "problem",
+    "ப்ராப்ளம்": "problem",
+    "சிம்டம்ஸ்": "symptoms",
+    "லைட்": "light",
 }
 
 _HINDI_LOANWORDS: dict[str, str] = {
