@@ -99,7 +99,7 @@ class IndicWhisperASRProvider(FasterWhisperProvider):
 
         audio_arr = np.frombuffer(audio_chunk.pcm, dtype=np.int16).astype(np.float32) / 32768.0
         generate_kwargs: dict[str, Any] = {"task": "transcribe"}
-        if self.fixed_language:
+        if self.fixed_language and self.name not in ("tanglish_whisper", "tanglish_med"):
             generate_kwargs["language"] = self.fixed_language
 
         try:

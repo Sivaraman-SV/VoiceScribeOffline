@@ -66,11 +66,29 @@ _PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(?:x\s*ray|x-ray)\b", re.IGNORECASE), "X-Ray"),
 
     # --- Common Tanglish Acoustic Mishear Corrections ---
-    (re.compile(r"\b(?:rinnala|rin\s*nala)\b", re.IGNORECASE), "பின்னால"),
-    (re.compile(r"\b(?:தலவிலி|தலவிலியா)\b", re.IGNORECASE), "தலைவலியா"),
-    (re.compile(r"\b(?:ableu\s*severe|avlo\s*severe)\b", re.IGNORECASE), "அவ்வளவு severe"),
+    (re.compile(r"\b(?:rinnala|rin\s*nala|pinnala|pinnadi)\b", re.IGNORECASE), "பின்னால"),
+    (re.compile(r"\b(?:தலவிலியா|thalaivaliya|thalavaliya)\b", re.IGNORECASE), "தலைவலியா"),
+    (re.compile(r"\b(?:தலவிலி|thalaivali|thalavali)\b", re.IGNORECASE), "தலைவலி"),
+    (re.compile(r"\b(?:ableu\s*severe|avlo\s*severe|avvalavu\s*severe)\b", re.IGNORECASE), "அவ்வளவு severe"),
     (re.compile(r"\b(?:puanakonsoor|puanakonsur)\b", re.IGNORECASE), "பின்னால கொஞ்சம்"),
-    (re.compile(r"\b(?:kojnjyom|koinjyom|koncho)\b", re.IGNORECASE), "கொஞ்சம்"),
+    (re.compile(r"\b(?:kojnjyom|koinjyom|koncho|konjam)\b", re.IGNORECASE), "கொஞ்சம்"),
+    (re.compile(r"\b(?:potten|poten)\b", re.IGNORECASE), "போட்டேன்"),
+    (re.compile(r"\b(?:saapten|saaptom)\b", re.IGNORECASE), "சாப்பிட்டேன்"),
+    (re.compile(r"\b(?:erukku|irukku)\b", re.IGNORECASE), "இருக்கு"),
+    (re.compile(r"\b(?:erukanga|irukanga|irukkaanga)\b", re.IGNORECASE), "இருக்காங்க"),
+    (re.compile(r"\b(?:illa|illai)\b", re.IGNORECASE), "இல்ல"),
+    (re.compile(r"\b(?:pannunga|pannungalen)\b", re.IGNORECASE), "பண்ணுங்க"),
+    (re.compile(r"\b(?:pannum|pannanum)\b", re.IGNORECASE), "பண்ணனும்"),
+    (re.compile(r"\b(?:romba|roomba)\b", re.IGNORECASE), "ரொம்ப"),
+    (re.compile(r"\b(?:mudiyala|mudiyale)\b", re.IGNORECASE), "முடியல"),
+    (re.compile(r"\b(?:theriyala|teriyala)\b", re.IGNORECASE), "தெரியல"),
+    (re.compile(r"\b(?:paravala|paravailla)\b", re.IGNORECASE), "பரவாயில்ல"),
+    (re.compile(r"\b(?:solranga|solunga|sollunga)\b", re.IGNORECASE), "சொல்லுங்க"),
+    (re.compile(r"\b(?:ennachu|enna\s*aachu)\b", re.IGNORECASE), "என்னாச்சு"),
+    (re.compile(r"\b(?:paapom|paakanum)\b", re.IGNORECASE), "பாக்கணும்"),
+    (re.compile(r"\b(?:vaanga)\b", re.IGNORECASE), "வாங்க"),
+    (re.compile(r"\b(?:enakku|inaku)\b", re.IGNORECASE), "எனக்கு"),
+    (re.compile(r"\b(?:ungalluku|ungalukku)\b", re.IGNORECASE), "உங்களுக்கு"),
 ]
 
 

@@ -30,6 +30,7 @@ class ASRProviderName(str, Enum):
     INDIC_WHISPER = "indic_whisper"
     INDIC_CONFORMER = "indic_conformer"
     TANGLISH_WHISPER = "tanglish_whisper"
+    TANGLISH_MED = "tanglish_med"
     HINGLISH_WHISPER = "hinglish_whisper"
     MOCK = "mock"
 
@@ -100,8 +101,8 @@ class Settings(BaseSettings):
     asr_compute_type: str = "int8"
     indic_whisper_model: str = "ai4bharat/whisper-medium-hi_alldata_multigpu"
     indic_whisper_use_transformers: bool = False
-    tanglish_whisper_model: str = "Badri0510/whisper-tanglish-ultra-8000"
-    tanglish_med_model: str = "surendirakrishna/OHM-Tanglish-MedASR-1.7B"
+    tanglish_whisper_model: str = "Badri0510/whisper-tanglish-DPO-production"
+    tanglish_med_model: str = "surendirakrishna/OHM-Tanglish-MedASR-1.7B-v152"
     hinglish_whisper_model: str = "Oriserve/Whisper-Hindi2Hinglish-Apex"
     indic_conformer_model: str = "ai4bharat/indicconformer_stt_multi_hybrid_rnnt_600m"
     # "auto" = detect per utterance (code-switching). A code such as "ta" forces

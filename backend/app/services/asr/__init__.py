@@ -88,10 +88,23 @@ def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> 
                 model_name=settings.tanglish_whisper_model,
                 use_transformers=True,
                 provider_name="tanglish_whisper",
-                language="ta",
+                language=None,
             )
         except Exception as exc:
             return UnavailableASRProvider(f"Failed to initialize Tanglish Whisper ASR: {exc}")
+
+    if settings.asr_provider is ASRProviderName.TANGLISH_MED:
+        try:
+            from app.services.asr.indic_whisper_provider import IndicWhisperASRProvider
+
+            return IndicWhisperASRProvider(
+                model_name=settings.tanglish_med_model,
+                use_transformers=True,
+                provider_name="tanglish_med",
+                language=None,
+            )
+        except Exception as exc:
+            return UnavailableASRProvider(f"Failed to initialize Tanglish Medical ASR: {exc}")
 
     if settings.asr_provider is ASRProviderName.HINGLISH_WHISPER:
         try:
