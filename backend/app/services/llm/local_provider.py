@@ -243,6 +243,14 @@ class LocalLLMProvider(LLMProvider):
                 status = exc.response.status_code
                 error_body = exc.response.text[:300]
                 if status == 404:
+                    if self.model != settings.local_llm_model:
+                        logger.warning(
+                            "requested_local_model_not_found_falling_back_to_default",
+                            extra={"requested": self.model, "fallback": settings.local_llm_model},
+                        )
+                        self.model = settings.local_llm_model
+                        payload["model"] = self.model
+                        continue
                     last_error = LLMUnavailable(
                         f"Model '{self.model}' not found on local LLM server. "
                         f"Run 'ollama pull {self.model}' to download it."
