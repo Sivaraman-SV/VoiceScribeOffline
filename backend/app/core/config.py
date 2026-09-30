@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # --- AI ----------------------------------------------------------------
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.7-flash"
-    ai_mode: AIMode = AIMode.GEMINI
+    ai_mode: AIMode = AIMode.LOCAL
     gemini_verify_ssl: bool = True
     gemini_http_proxy: str | None = None
     gemini_update_interval_seconds: float = 10.0
@@ -177,9 +177,9 @@ class Settings(BaseSettings):
             return AIMode.MOCK
         if self.ai_mode in (AIMode.LOCAL, AIMode.OLLAMA):
             return self.ai_mode
-        if self.gemini_configured:
+        if self.ai_mode is AIMode.GEMINI and self.gemini_configured:
             return AIMode.GEMINI
-        return AIMode.MOCK
+        return AIMode.LOCAL
 
     @property
     def audio_storage_path(self) -> Path:

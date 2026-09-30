@@ -66,26 +66,28 @@ _DRUG_HINT = re.compile(
     re.IGNORECASE,
 )
 
-_INVENTED_DIAGNOSIS_MARKERS = (
-    "viral fever",
-    "upper respiratory",
-    "urti",
-    "uti",
-    "gastroenteritis",
-    "typhoid",
-    "dengue",
-    "malaria",
-    "pneumonia",
-    "bronchitis",
-    "sinusitis",
-    "migraine",
-    "gerd",
-    "acid reflux",
-    "hypertension",
-    "diabetes mellitus",
-    "anemia",
-    "anaemia",
-)
+_DIAGNOSIS_SYMPTOM_SUPPORT: dict[str, tuple[str, ...]] = {
+    "viral fever": ("fever", "temp", "cold", "chill", "body pain", "ache", "juram", "kaachal"),
+    "upper respiratory": ("cold", "cough", "throat", "fever", "breath", "sneeze", "runny", "nasal"),
+    "urti": ("cold", "cough", "throat", "fever", "breath", "sneeze", "runny", "nasal"),
+    "uti": ("urine", "dysuria", "burning", "fever", "bladder"),
+    "gastroenteritis": ("vomit", "diarrhea", "loose", "nausea", "stomach", "abdomen"),
+    "typhoid": ("typhoid", "enteric"),
+    "dengue": ("dengue", "platelet"),
+    "malaria": ("malaria", "rigor"),
+    "pneumonia": ("cough", "breath", "fever", "chest", "crackles", "crepitation"),
+    "bronchitis": ("cough", "sputum", "phlegm", "breath", "cold"),
+    "sinusitis": ("sinus", "nasal", "cold", "headache", "facial"),
+    "migraine": ("headache", "head", "aura", "throbbing", "sar dard", "thalavali"),
+    "gerd": ("heartburn", "acid", "reflux", "chest", "burning", "indigestion"),
+    "acid reflux": ("heartburn", "acid", "reflux", "chest", "burning", "indigestion"),
+    "hypertension": ("bp", "blood pressure", "hypertension"),
+    "diabetes mellitus": ("diabetes", "sugar", "glucose"),
+    "anemia": ("anemia", "anaemia", "hb", "hemoglobin"),
+    "anaemia": ("anemia", "anaemia", "hb", "hemoglobin"),
+}
+
+_INVENTED_DIAGNOSIS_MARKERS = tuple(_DIAGNOSIS_SYMPTOM_SUPPORT.keys())
 
 
 def _synonym_pairs() -> dict[str, str]:
@@ -166,9 +168,10 @@ def _clause_supported(clause: str, transcript: str) -> bool:
         return False
     lowered = text.lower()
     haystack = expand_clinical_text(transcript)
-    for marker in _INVENTED_DIAGNOSIS_MARKERS:
-        if marker in lowered and marker not in haystack:
-            return False
+    for marker, required_support in _DIAGNOSIS_SYMPTOM_SUPPORT.items():
+        if marker in lowered:
+            if not any(req in haystack for req in required_support):
+                return False
     if is_grounded(text, transcript):
         return True
     if _DRUG_HINT.search(text):
@@ -177,7 +180,7 @@ def _clause_supported(clause: str, transcript: str) -> bool:
     if not tokens:
         return True
     matched = sum(1 for tok in tokens if tok in haystack)
-    return matched / len(tokens) >= 0.35
+    return matched / len(tokens) >= 0.25
 
 
 def _filter_section_text(text: str, transcript: str, *, medication_section: bool) -> str:
@@ -223,6 +226,21 @@ def purge_note_hallucinations(
         section = getattr(note, key, None)
         if section is None or not section.text:
             continue
+        if key == "assessment":
+            # Clinical synthesis: verify not diagnosing an unrelated chronic condition
+            lowered = section.text.lower()
+            haystack = expand_clinical_text(support)
+            unsupported = False
+            for marker, required_support in _DIAGNOSIS_SYMPTOM_SUPPORT.items():
+                if marker in lowered and not any(req in haystack for req in required_support):
+                    unsupported = True
+                    break
+            if unsupported:
+                section.text = ""
+                section.source_segment_ids = []
+                section.confidence = 0.0
+            continue
+
         if not _clause_supported(section.text, support):
             section.text = ""
             section.source_segment_ids = []

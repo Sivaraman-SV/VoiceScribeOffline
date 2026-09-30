@@ -70,7 +70,35 @@ SYMPTOM_LEXICON = (
     "numbness",
     "tingling",
     "cough",
+    "cold",
+    "common cold",
+    "head cold",
+    "chest cold",
     "fever",
+    "feverish",
+    "high fever",
+    "mild fever",
+    "slight fever",
+    "body pain",
+    "body pains",
+    "body ache",
+    "body aches",
+    "bodyache",
+    "generalized body ache",
+    "breathing issues",
+    "breathing issue",
+    "breathing problem",
+    "breathing difficulty",
+    "difficulty breathing",
+    "trouble breathing",
+    "shortness of breath",
+    "breathlessness",
+    "dyspnea",
+    "runny nose",
+    "nasal congestion",
+    "blocked nose",
+    "throat irritation",
+    "throat pain",
     "chills",
     "night sweats",
     "weight loss",
@@ -268,7 +296,8 @@ FREQUENCY_PATTERNS = (
 
 DURATION_PATTERNS = (
     r"\bsince (?:yesterday(?: evening| morning| afternoon| night)?|last (?:night|week|month|year)|this (?:morning|afternoon|evening))\b",
-    r"\bfor (?:about |around |roughly )?\d+ (?:minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)\b",
+    r"\bfor (?:about |around |roughly )?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|few|a couple of) (?:minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years)(?: now)?\b",
+    r"\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten) (?:days?|weeks?|months?|hours?)(?: now)?\b",
     r"\b(?:about|around|roughly)? ?\d+ (?:minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years) ago\b",
     r"\bstarted (?:about |around )?(?:\w+ )?(?:days?|weeks?|months?|years?) ago\b",
     r"\bthree weeks ago\b",
@@ -394,6 +423,10 @@ class ClinicalNLPService:
         for pattern in ALLERGY_PATTERNS:
             for match in re.finditer(pattern, lowered):
                 found.append(self._allergy(match.group(0), text, base_confidence, segment))
+
+        temp_pattern = r"\b(?:ranging (?:around|from) )?(?:(?:\d{2,3}(?:\.\d+)?)|ninety[\s-]*nine)\s*(?:to|-)\s*(?:(?:\d{2,3}(?:\.\d+)?)|hundred[\s-]*and[\s-]*one)\s*(?:degrees?[\s-]*)?(?:fahrenheit|f|celsius|c)?\b"
+        for match in re.finditer(temp_pattern, lowered):
+            found.append(self._build(EntityType.FINDING, match.group(0).strip(), text, base_confidence, segment))
 
         # Plan and follow-up language only counts when a clinician says it.
         if segment.role in (SpeakerRole.DOCTOR, SpeakerRole.NURSE, SpeakerRole.UNKNOWN):

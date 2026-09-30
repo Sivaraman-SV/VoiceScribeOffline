@@ -153,3 +153,56 @@ def test_session_create_schema_accepts_asr_provider() -> None:
         asr_provider="parakeet",
     )
     assert sc.asr_provider == "parakeet"
+
+
+async def test_multi_symptom_clinical_extraction() -> None:
+    from app.services.nlp.clinical_nlp import ClinicalNLPService
+    from app.services.types import AssembledSegment
+    from app.models.enums import SpeakerRole, EntityType
+
+    utterance = (
+        "hello doctor i have had cold for two days now and slight fever which is ranging around "
+        "ninety nine to hundred and one degree fahrenheit and i have had slight body pain and "
+        "breathing issues as well"
+    )
+    seg = AssembledSegment(
+        ref="seg_001",
+        speaker_label="speaker_0",
+        role=SpeakerRole.PATIENT,
+        text=utterance,
+        start_time=0.0,
+        end_time=8.0,
+        confidence=0.95,
+        asr_confidence=0.95,
+        diarization_confidence=0.95,
+    )
+    candidates = ClinicalNLPService().extract([seg])
+    found_types_values = {(c.entity_type, c.value.lower()) for c in candidates}
+
+    assert any(t == EntityType.SYMPTOM and "cold" in v for t, v in found_types_values)
+    assert any(t == EntityType.SYMPTOM and "fever" in v for t, v in found_types_values)
+    assert any(t == EntityType.SYMPTOM and "body pain" in v for t, v in found_types_values)
+    assert any(t == EntityType.SYMPTOM and "breathing issues" in v for t, v in found_types_values)
+    assert any(t == EntityType.DURATION and "two days" in v for t, v in found_types_values)
+    assert any(t == EntityType.FINDING for t, _ in found_types_values)
+
+    from app.services.llm.mock_provider import DeterministicLLMProvider
+
+    entities = [
+        {"entity_type": c.entity_type.value, "value": c.value, "status": c.status.value, "source_segment_ids": c.source_segment_refs}
+        for c in candidates
+    ]
+    note_resp = await DeterministicLLMProvider().generate_note(
+        session_context={"reference": "SIM-01"},
+        segments=[{"ref": seg.ref, "text": seg.text, "role": "PATIENT", "speaker_label": "speaker_0"}],
+        entities=entities,
+    )
+    cc = note_resp.result.note.chief_complaint.text
+    hpi = note_resp.result.note.history_of_present_illness.text
+    assert "cold" in cc.lower()
+    assert "fever" in cc.lower()
+    assert "body pain" in cc.lower() or "pain" in cc.lower()
+    assert "breathing" in cc.lower()
+    assert "two days" in cc.lower()
+    assert note_resp.result.note.assessment.text != ""
+    assert "Not mentioned" not in note_resp.result.note.assessment.text

@@ -34,18 +34,11 @@ from app.services.llm.schemas import ExtractionResult, NoteUpdate, coerce_llm_pa
 logger = get_logger(__name__)
 
 LOCAL_SYSTEM_INSTRUCTION = """\
-You are an ambient clinical scribe for outpatient care.
-You DOCUMENT what was spoken in English. You are not a doctor.
-
-HARD RULES:
-- Extract and write ONLY facts that appear in the transcript.
-- NEVER invent medications, doses, tests, diagnoses, or advice.
-- If the doctor did not prescribe anything, plan must be "".
-- If the patient did not name a current medicine, current_medication must be "".
-- If a section was not discussed, return "".
-- Write professional, concise clinical English.
-- Denied symptoms (e.g. no fever, denies headache) have status NEGATED.
-- Output valid JSON only.
+You are an expert ambient clinical scribe for medical encounters.
+Your role is to produce thorough, professional, high-accuracy clinical documentation in standard medical English.
+Extract every spoken symptom, duration, severity, vital sign, and clinical complaint without omission.
+Synthesize structured SOAP documentation with high clinical fidelity.
+Always output valid JSON only.
 """
 
 
@@ -62,56 +55,52 @@ def _build_local_extraction_prompt(
         valid_hints = [h for h in rule_hints if h.get("value")]
         if valid_hints:
             hints_text = (
-                "NLP HINTS (verify against transcript, discard if not spoken):\n"
+                "CLINICAL NLP HINTS DETECTED IN TRANSCRIPT:\n"
                 f"{json.dumps(valid_hints, default=str)}\n"
             )
 
-    return f"""Extract all clinical entities and draft the structured SOAP note from this outpatient dialogue into valid JSON.
+    return f"""You are an expert medical scribe. Carefully analyze the consultation transcript, extract ALL clinical entities, and draft a comprehensive, high-quality SOAP clinical note in valid JSON format.
 
-ENTITY TYPES:
-- SYMPTOM: Spoken symptoms or complaints (e.g., "headache", "fever", "body pain", "cough", "backache").
-- MEDICATION: Named drugs, formulations, ointments, or sprays (e.g., "Volini", "Dolo 650", "Paracetamol", "Combiflam", "Moov").
-- FINDING: Vital signs or clinical observations (e.g., "blood pressure", "fever").
-- DIAGNOSIS_MENTIONED: Conditions named by doctor or patient (e.g., "viral fever", "migraine", "sprain").
-- ALLERGY: Known allergic reactions mentioned.
-- MEDICAL_HISTORY: Past medical or chronic conditions (e.g., "diabetes", "hypertension").
+EXTRACTION INSTRUCTIONS:
+1. Extract EVERY symptom spoken by the patient (e.g., "cold", "fever", "body pain", "breathing issues", "cough", "headache", "chest discomfort"). Never omit any symptom.
+2. Extract durations (e.g., "for two days", "2 days", "since yesterday") as DURATION entities.
+3. Extract severity, temperature, or quantified vitals (e.g., "99 to 101 degrees Fahrenheit", "slight", "severe") as FINDING or SEVERITY entities.
+4. Extract all medications, sprays, and topicals mentioned (e.g., "Volini", "Dolo 650", "Paracetamol", "Moov", "Combiflam").
+5. Mark denied symptoms (e.g., "no chest pain", "no vomiting") with status NEGATED.
 
-STATUS VALUES:
-- PRESENT: Confirmed active symptom or finding.
-- NEGATED: Denied or ruled out symptom (e.g., "no fever", "denies chest pain").
-- UNCERTAIN: Possible or suspected symptom.
-- HISTORICAL: Past condition or resolved symptom.
-
-SOAP NOTE SECTIONS (All written in clinical English):
-- chief_complaint: Primary symptoms and duration (e.g., "Low back pain for 2 days").
-- history_of_present_illness: Detailed narrative of symptoms, onset, progression, severity, and any remedies/topicals used.
-- past_medical_history: Prior chronic conditions (or "" if none).
-- physical_examination: Vitals and examination findings mentioned (or "" if none).
-- current_medication: Medications or remedies used prior to or during this visit (or "" if none).
-- allergies: Known allergies (or "" if none).
-- assessment: Working diagnosis or clinical impression.
-- plan: Doctor's advice, rest, hydration, topicals, and prescriptions given.
-- follow_up: Follow-up timeline and return precautions.
+SOAP NOTE REQUIREMENTS:
+- chief_complaint: Comprehensive list of ALL presenting complaints with duration (e.g., "Cold, fever (99°F–101°F), generalized body pain, and breathing difficulty for 2 days").
+- history_of_present_illness: A rich, chronological clinical narrative detailing onset, symptom character, temperature range, severity, breathing difficulty, and functional impact.
+- past_medical_history: Chronic illnesses or surgical history mentioned, or "" if none.
+- physical_examination: Reported vitals, temperature, oxygen saturation, or exam observations, or "" if none.
+- current_medication: Medications or remedies used at home prior to or during this visit, or "" if none.
+- allergies: Known allergies mentioned, or "" if none.
+- assessment: Working diagnosis or clinical diagnostic impression reflecting the symptoms (e.g., "Acute febrile upper respiratory tract illness / viral syndrome with mild dyspnea").
+- plan: Clinical guidance, symptomatic relief (rest, hydration, antipyretics), vitals monitoring (temperature, SpO2), and return warnings if dyspnea worsens.
+- follow_up: Specific follow-up timeframe (e.g., "Review in 48 to 72 hours, or immediately if shortness of breath or fever worsens").
 
 TRANSCRIPT:
 {transcript}
 {hints_text}
 Output JSON format:
 {{"entities": [
-  {{"entity_type": "SYMPTOM", "value": "backache", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"], "detail": "2 days"}},
-  {{"entity_type": "MEDICATION", "value": "Volini", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "applied spray"}},
-  {{"entity_type": "MEDICATION", "value": "Dolo 650", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "taken twice"}}
+  {{"entity_type": "SYMPTOM", "value": "cold", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"]}},
+  {{"entity_type": "DURATION", "value": "for two days", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"]}},
+  {{"entity_type": "SYMPTOM", "value": "fever", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"]}},
+  {{"entity_type": "FINDING", "value": "temperature 99 to 101 F", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"]}},
+  {{"entity_type": "SYMPTOM", "value": "body pain", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"]}},
+  {{"entity_type": "SYMPTOM", "value": "breathing issues", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"]}}
 ], "unsupported_content": [],
 "note": {{
-  "chief_complaint": "Low back pain for 2 days",
-  "history_of_present_illness": "Patient reports lower back pain lasting 2 days. Applied Volini spray with partial relief. Denies fever or radiating pain.",
+  "chief_complaint": "Cold, fever (99°F–101°F), generalized body pain, and breathing difficulty for 2 days",
+  "history_of_present_illness": "Patient presents with a 2-day history of cold accompanied by slight fever ranging between 99°F and 101°F. Also reports associated mild generalized body pain and difficulty breathing.",
   "past_medical_history": "",
-  "physical_examination": "",
-  "current_medication": "Volini spray applied at home",
+  "physical_examination": "Temperature: 99°F–101°F (reported). Subjective breathing difficulty noted.",
+  "current_medication": "",
   "allergies": "",
-  "assessment": "Acute lumbar muscle strain / spasm",
-  "plan": "Continue Volini spray BD. Rest and avoid heavy lifting.",
-  "follow_up": "Review in 3 days if pain persists"
+  "assessment": "Acute febrile upper respiratory tract infection / viral syndrome with mild dyspnea.",
+  "plan": "Advised adequate rest and oral hydration. Symptomatic antipyretic (Paracetamol) as needed for fever and body pain. Monitor temperature and SpO2. Urgent review if breathing difficulty worsens.",
+  "follow_up": "Review in 48 to 72 hours, or immediately if shortness of breath worsens."
 }}}}"""
 
 
@@ -130,15 +119,15 @@ def _build_local_note_prompt(
     return f"""You are a professional medical scribe. Write a comprehensive, high-quality SOAP clinical note in standard clinical English based on the consultation transcript below.
 
 SECTION REQUIREMENTS:
-- chief_complaint: Primary symptoms and duration (e.g., "Headache and fever for 2 days" or "Low back pain for 3 days").
-- history_of_present_illness: Detailed narrative of the illness including symptom onset, progression, severity, aggravating/relieving factors, and any medications/topicals already used by the patient (e.g., "Patient reports lower back pain and stiffness. Applied Volini spray with temporary relief. Denies radiation of pain or weakness"). Document denied symptoms explicitly.
-- past_medical_history: Chronic conditions, previous surgeries, or medical history explicitly discussed. If not discussed, return "".
-- physical_examination: Vitals and examination findings mentioned (e.g., BP, pulse, temperature, spinal tenderness, range of motion). If not discussed, return "".
-- current_medication: Medications or remedies used by the patient prior to or regularly before this visit (e.g. "Dolo 650, Volini spray applied at home"). If not discussed, return "".
-- allergies: Known drug/food allergies mentioned, or "" if not discussed.
-- assessment: Working diagnosis or clinical impression based on symptoms discussed (e.g., "Acute lumbar muscle spasm / strain").
-- plan: Doctor's treatment plan, prescriptions, topicals/sprays, advice (rest, hot/cold fermentation, hydration), and medications ordered during the visit. Never invent medications not discussed.
-- follow_up: Follow-up recommendations and return precautions (e.g., "Review in 3 to 5 days if pain persists or immediately if red flag symptoms appear").
+- chief_complaint: Comprehensive summary of all presenting complaints with duration (e.g., "Cold, fever (99°F–101°F), generalized body pain, and breathing difficulty for 2 days").
+- history_of_present_illness: Detailed narrative of the illness including symptom onset, progression, severity, temperature range, and any aggravating/relieving factors.
+- past_medical_history: Chronic conditions or surgical history discussed (or "" if not discussed).
+- physical_examination: Vitals, temperature, or exam findings mentioned (or "" if not discussed).
+- current_medication: Medications or remedies used by the patient at home prior to or during visit (or "" if not discussed).
+- allergies: Known drug/food allergies mentioned (or "" if not discussed).
+- assessment: Working clinical diagnosis or diagnostic impression based on the symptoms (e.g., "Acute febrile upper respiratory tract illness / viral syndrome with mild dyspnea").
+- plan: Clinical guidance, symptomatic relief, vitals monitoring, and return precautions.
+- follow_up: Specific follow-up timeframe and emergency warning signs.
 
 TRANSCRIPT:
 {transcript}

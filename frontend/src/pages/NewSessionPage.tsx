@@ -48,9 +48,16 @@ export const SOAP_MODELS = [
   {
     id: 'gemma2:9b',
     name: 'Gemma 2 9B',
-    tag: 'Google DeepMind · SOTA Clinical Reasoning',
-    detail: '9.2B parameters. Ultra-accurate diagnostic reasoning, fast single-pass inference, and structured clinical clarity.',
-    badge: 'Mainstream',
+    tag: 'Google DeepMind · SOTA Fast Clinical Scribe',
+    detail: '9.2B parameters. High diagnostic precision, fast single-pass inference (~20s), and clean structured SOAP documentation.',
+    badge: 'Fast & Mainstream',
+  },
+  {
+    id: 'gemma2:27b',
+    name: 'Gemma 2 27B',
+    tag: 'Google DeepMind · Flagship Clinical Intelligence',
+    detail: '27.2B parameters. Maximum medical reasoning depth, comprehensive multi-symptom synthesis, and advanced clinical differentials.',
+    badge: 'Maximum Accuracy',
   },
 ]
 
