@@ -66,7 +66,7 @@ def _build_local_extraction_prompt(
                 f"{json.dumps(valid_hints, default=str)}\n"
             )
 
-    return f"""Extract all clinical entities from this outpatient dialogue into valid JSON.
+    return f"""Extract all clinical entities and draft the structured SOAP note from this outpatient dialogue into valid JSON.
 
 ENTITY TYPES:
 - SYMPTOM: Spoken symptoms or complaints (e.g., "headache", "fever", "body pain", "cough", "backache").
@@ -82,6 +82,17 @@ STATUS VALUES:
 - UNCERTAIN: Possible or suspected symptom.
 - HISTORICAL: Past condition or resolved symptom.
 
+SOAP NOTE SECTIONS (All written in clinical English):
+- chief_complaint: Primary symptoms and duration (e.g., "Low back pain for 2 days").
+- history_of_present_illness: Detailed narrative of symptoms, onset, progression, severity, and any remedies/topicals used.
+- past_medical_history: Prior chronic conditions (or "" if none).
+- physical_examination: Vitals and examination findings mentioned (or "" if none).
+- current_medication: Medications or remedies used prior to or during this visit (or "" if none).
+- allergies: Known allergies (or "" if none).
+- assessment: Working diagnosis or clinical impression.
+- plan: Doctor's advice, rest, hydration, topicals, and prescriptions given.
+- follow_up: Follow-up timeline and return precautions.
+
 TRANSCRIPT:
 {transcript}
 {hints_text}
@@ -90,7 +101,18 @@ Output JSON format:
   {{"entity_type": "SYMPTOM", "value": "backache", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"], "detail": "2 days"}},
   {{"entity_type": "MEDICATION", "value": "Volini", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "applied spray"}},
   {{"entity_type": "MEDICATION", "value": "Dolo 650", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "taken twice"}}
-], "unsupported_content": []}}"""
+], "unsupported_content": [],
+"note": {{
+  "chief_complaint": "Low back pain for 2 days",
+  "history_of_present_illness": "Patient reports lower back pain lasting 2 days. Applied Volini spray with partial relief. Denies fever or radiating pain.",
+  "past_medical_history": "",
+  "physical_examination": "",
+  "current_medication": "Volini spray applied at home",
+  "allergies": "",
+  "assessment": "Acute lumbar muscle strain / spasm",
+  "plan": "Continue Volini spray BD. Rest and avoid heavy lifting.",
+  "follow_up": "Review in 3 days if pain persists"
+}}}}"""
 
 
 def _build_local_note_prompt(
@@ -148,6 +170,7 @@ class LocalLLMProvider(LLMProvider):
         self.max_retries = max_retries or settings.local_llm_max_retries
         self.temperature = settings.local_llm_temperature if temperature is None else temperature
         self._client: httpx.AsyncClient | None = None
+        self._cached_note: tuple[str, dict[str, Any], LLMCallStats] | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -183,6 +206,7 @@ class LocalLLMProvider(LLMProvider):
                 "stream": False,
                 "format": "json",
                 "options": {
+                    "num_gpu": 99,
                     "num_thread": 8,
                     "num_ctx": num_ctx,
                     "num_predict": max_tokens,
@@ -311,10 +335,41 @@ class LocalLLMProvider(LLMProvider):
             if dropped:
                 logger.info("local_llm_dropped_ungrounded_entities", extra={"dropped": dropped})
             result.entities = kept
+
+            # Cache the single-pass note if produced by the unified prompt
+            transcript_key = " ".join(str(s.get("text", "")) for s in clean_segments)
+            if isinstance(parsed_json, dict) and "note" in parsed_json and isinstance(parsed_json["note"], dict):
+                self._cached_note = (transcript_key, parsed_json["note"], stats)
+
             return ExtractionResponse(result=result, stats=stats)
         except Exception as exc:
             logger.warning("local_llm_extraction_parse_error", extra={"raw": raw_text[:400], "error": str(exc)})
             raise LLMInvalidOutput(f"Local LLM returned malformed extraction JSON: {exc}") from exc
+
+    def _link_provenance(self, result: NoteUpdate, clean_segments: list[dict[str, Any]]) -> None:
+        """Auto-link transcript segment provenance for documented sections."""
+        seg_dict = {
+            str(s.get("ref", "")): str(s.get("text", "")).lower()
+            for s in clean_segments
+            if s.get("ref") and s.get("text")
+        }
+        all_refs = list(seg_dict.keys())
+
+        for key, _ in result.note.model_dump().items():
+            section_obj = getattr(result.note, key, None)
+            if not section_obj or not section_obj.text:
+                continue
+            if not section_obj.source_segment_ids:
+                sec_words = set(re.findall(r"\w{3,}", section_obj.text.lower()))
+                sec_words.difference_update({
+                    "the", "and", "for", "with", "was", "has", "have", "had",
+                    "not", "patient", "reports", "doctor", "history", "clinical"
+                })
+                matched = [
+                    ref for ref, seg_txt in seg_dict.items()
+                    if any(w in seg_txt for w in sec_words)
+                ]
+                section_obj.source_segment_ids = matched if matched else (all_refs[:3] if all_refs else [])
 
     async def generate_note(
         self,
@@ -325,6 +380,23 @@ class LocalLLMProvider(LLMProvider):
         current_note: dict[str, Any] | None = None,
     ) -> NoteResponse:
         clean_segments = normalize_segments(segments)
+        transcript_key = " ".join(str(s.get("text", "")) for s in clean_segments)
+
+        # Fast path: reuse single-pass note generated during extraction
+        cached = self._cached_note
+        if cached is not None and cached[0] == transcript_key and isinstance(cached[1], dict):
+            logger.info("local_llm_reusing_single_pass_note", extra={"model": self.model})
+            note_dict, stats = cached[1], cached[2]
+            self._cached_note = None
+            try:
+                coerced = coerce_llm_payload(note_dict, NoteUpdate)
+                result = NoteUpdate.model_validate(coerced)
+                purge_note_hallucinations(result, clean_segments, entities)
+                self._link_provenance(result, clean_segments)
+                return NoteResponse(result=result, stats=stats)
+            except Exception as exc:
+                logger.warning("cached_note_coercion_failed_falling_back", extra={"error": str(exc)})
+
         prompt = _build_local_note_prompt(
             segments=clean_segments,
             entities=entities,
@@ -335,29 +407,7 @@ class LocalLLMProvider(LLMProvider):
             coerced = coerce_llm_payload(parsed_json, NoteUpdate)
             result = NoteUpdate.model_validate(coerced)
             purge_note_hallucinations(result, clean_segments, entities)
-
-            # Auto-link transcript segment provenance for documented sections
-            seg_dict = {
-                str(s.get("ref", "")): str(s.get("text", "")).lower()
-                for s in clean_segments
-                if s.get("ref") and s.get("text")
-            }
-            all_refs = list(seg_dict.keys())
-
-            for key, _ in result.note.model_dump().items():
-                section_obj = getattr(result.note, key, None)
-                if not section_obj or not section_obj.text:
-                    continue
-                if not section_obj.source_segment_ids:
-                    sec_words = set(re.findall(r"\w{3,}", section_obj.text.lower()))
-                    # Exclude common stopwords
-                    sec_words.difference_update({"the", "and", "for", "with", "was", "has", "have", "had", "not", "patient", "reports", "doctor"})
-                    matched = [
-                        ref for ref, seg_txt in seg_dict.items()
-                        if any(w in seg_txt for w in sec_words)
-                    ]
-                    section_obj.source_segment_ids = matched if matched else (all_refs[:3] if all_refs else [])
-
+            self._link_provenance(result, clean_segments)
             return NoteResponse(result=result, stats=stats)
         except Exception as exc:
             logger.warning("local_llm_note_parse_error", extra={"raw": raw_text[:400], "error": str(exc)})

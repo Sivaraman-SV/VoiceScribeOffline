@@ -137,26 +137,35 @@ class FasterWhisperProvider(ASRProvider):
         results: list[ASRSegment] = []
         if self.fixed_language == "en":
             prompt = self._prompt_for("en")
-            segments, _info = model.transcribe(
-                audio,
-                language="en",
-                task="transcribe",
-                beam_size=settings.asr_beam_size,
-                vad_filter=True,
-                vad_parameters=dict(
+            hotwords = (
+                "Volini Moov Omnigel Relispray Dolo Paracetamol Combiflam "
+                "Pantocid Pan-D Azithral Augmentin Cetirizine Montair-LC Allegra "
+                "Digene Electral ORS Metformin Telma headache fever cough body pain "
+                "backache joint pain chest pain blood pressure"
+            )
+            transcribe_kwargs = {
+                "language": "en",
+                "task": "transcribe",
+                "beam_size": settings.asr_beam_size,
+                "vad_filter": True,
+                "vad_parameters": dict(
                     min_silence_duration_ms=600,
                     speech_pad_ms=300,
                 ),
-                word_timestamps=True,
-                condition_on_previous_text=True,
-                initial_prompt=prompt,
-                temperature=0.0,
-                compression_ratio_threshold=2.4,
-                log_prob_threshold=-1.0,
-                no_speech_threshold=0.6,
-                repetition_penalty=1.05,
-                no_repeat_ngram_size=0,
-            )
+                "word_timestamps": True,
+                "condition_on_previous_text": True,
+                "initial_prompt": prompt,
+                "temperature": 0.0,
+                "compression_ratio_threshold": 2.4,
+                "log_prob_threshold": -1.0,
+                "no_speech_threshold": 0.6,
+                "repetition_penalty": 1.05,
+                "no_repeat_ngram_size": 0,
+            }
+            try:
+                segments, _info = model.transcribe(audio, hotwords=hotwords, **transcribe_kwargs)
+            except (TypeError, ValueError):
+                segments, _info = model.transcribe(audio, **transcribe_kwargs)
             for segment in segments:
                 if getattr(segment, "no_speech_prob", 0.0) > 0.8 and getattr(segment, "avg_logprob", 0.0) < -0.8:
                     continue

@@ -20,7 +20,7 @@ def test_offline_defaults_fit_rtx_4050() -> None:
     fields = Settings.model_fields
     assert fields["asr_provider"].default is ASRProviderName.FASTER_WHISPER
     assert fields["faster_whisper_model"].default == "large-v3-turbo"
-    assert fields["local_llm_model"].default == "qwen2.5:7b"
+    assert fields["local_llm_model"].default == "gemma2:9b"
     assert fields["asr_device"].default == "cpu"
     assert fields["indic_whisper_use_transformers"].default is False
     assert fields["local_llm_temperature"].default == 0.0

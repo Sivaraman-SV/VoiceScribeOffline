@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # --- AI ----------------------------------------------------------------
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.7-flash"
     ai_mode: AIMode = AIMode.GEMINI
     gemini_verify_ssl: bool = True
     gemini_http_proxy: str | None = None
@@ -72,9 +72,9 @@ class Settings(BaseSettings):
     gemini_temperature: float = 0.1
 
     # --- Local / Offline LLM (Ollama / llama.cpp) --------------------------
-    # RTX 4050 (6 GB): Qwen 2.5 7B Q4 ~4.7 GB on GPU. Keep Whisper on CPU.
+    # Gemma 2 9B: SOTA clinical reasoning, fast structured SOAP documentation.
     local_llm_base_url: str = "http://localhost:11434/v1"
-    local_llm_model: str = "qwen2.5:7b"
+    local_llm_model: str = "gemma2:9b"
     local_llm_timeout_seconds: float = 180.0
     local_llm_max_retries: int = 2
     local_llm_temperature: float = 0.0
@@ -93,8 +93,9 @@ class Settings(BaseSettings):
     demo_segment_interval_seconds: float = 2.5
 
     # --- pipeline providers ------------------------------------------------
-    asr_provider: ASRProviderName = ASRProviderName.GEMINI
-    diarization_provider: DiarizationProviderName = DiarizationProviderName.GEMINI
+    # RTX 4050 (6 GB): Whisper on CPU so Qwen 7B can use the GPU.
+    asr_provider: ASRProviderName = ASRProviderName.FASTER_WHISPER
+    diarization_provider: DiarizationProviderName = DiarizationProviderName.LOCAL
     faster_whisper_model: str = "large-v3-turbo"
     asr_device: str = "cpu"
     asr_compute_type: str = "int8"
