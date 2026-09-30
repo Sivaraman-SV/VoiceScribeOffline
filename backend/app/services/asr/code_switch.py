@@ -39,7 +39,7 @@ _LANGUAGE_ALIASES: dict[str, str] = {
 _STYLE_PROMPTS: dict[str, str] = {
     "ta": "doctor, எனக்கு 2 days-ஆ severe headache and chest pain இருக்கு. Paracetamol Dolo 650 tablet போட்டேன். BP check பண்ணனும்.",
     "hi": "doctor, मुझे 2 days से fever and chest pain है। मैंने Paracetamol Dolo 650 tablet ली थी। BP check करना है।",
-    "en": "doctor, I have had a headache and chest discomfort for two days. I took a Dolo 650 tablet.",
+    "en": "Doctor and patient clinical discussion regarding headache, fever, cough, body pain, chest discomfort, nausea, vomiting, medications, Dolo 650, Paracetamol, BP, and vitals.",
 }
 
 
@@ -53,22 +53,23 @@ def parse_languages(value: str | None) -> tuple[str, ...]:
 def style_prompt(language: str | None, override: str | None = None) -> str | None:
     if override:
         return override
-    return _STYLE_PROMPTS.get(language or "")
+    return _STYLE_PROMPTS.get(language or "en")
 
 
 @dataclass
 class LanguagePolicy:
     """Chooses one utterance's language from Whisper's language probabilities."""
 
-    allowed: tuple[str, ...] = ("ta", "en", "hi")
-    # Added to the previous utterance's language; short utterances get more,
-    # because Whisper's detection on under two seconds of audio is unreliable.
+    allowed: tuple[str, ...] = ("en",)
     stickiness: float = 0.15
     short_utterance_seconds: float = 2.0
-    previous: str | None = None
+    previous: str | None = "en"
     counts: dict[str, int] = field(default_factory=dict)
 
     def choose(self, probabilities: list[tuple[str, float]], duration: float) -> tuple[str, float]:
+        if not self.allowed or self.allowed == ("en",):
+            self.previous = "en"
+            return "en", 1.0
         scores: dict[str, float] = {}
         for language, probability in probabilities:
             target = language if not self.allowed or language in self.allowed else _LANGUAGE_ALIASES.get(language)

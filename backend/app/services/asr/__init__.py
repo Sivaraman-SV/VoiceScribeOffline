@@ -72,62 +72,14 @@ def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> 
             )
         return GeminiASRProvider()
 
-    if settings.asr_provider is ASRProviderName.INDIC_WHISPER:
-        try:
-            from app.services.asr.indic_whisper_provider import IndicWhisperASRProvider
-
-            return IndicWhisperASRProvider()
-        except Exception as exc:
-            return UnavailableASRProvider(f"Failed to initialize IndicWhisper ASR: {exc}")
-
-    if settings.asr_provider is ASRProviderName.TANGLISH_WHISPER:
-        try:
-            from app.services.asr.indic_whisper_provider import IndicWhisperASRProvider
-
-            return IndicWhisperASRProvider(
-                model_name=settings.tanglish_whisper_model,
-                use_transformers=True,
-                provider_name="tanglish_whisper",
-                language=None,
-            )
-        except Exception as exc:
-            return UnavailableASRProvider(f"Failed to initialize Tanglish Whisper ASR: {exc}")
-
-    if settings.asr_provider is ASRProviderName.TANGLISH_MED:
-        try:
-            from app.services.asr.indic_whisper_provider import IndicWhisperASRProvider
-
-            return IndicWhisperASRProvider(
-                model_name=settings.tanglish_med_model,
-                use_transformers=True,
-                provider_name="tanglish_med",
-                language=None,
-            )
-        except Exception as exc:
-            return UnavailableASRProvider(f"Failed to initialize Tanglish Medical ASR: {exc}")
-
-    if settings.asr_provider is ASRProviderName.HINGLISH_WHISPER:
-        try:
-            from app.services.asr.indic_whisper_provider import IndicWhisperASRProvider
-
-            return IndicWhisperASRProvider(
-                model_name=settings.hinglish_whisper_model,
-                use_transformers=True,
-                provider_name="hinglish_whisper",
-                language="hi",
-            )
-        except Exception as exc:
-            return UnavailableASRProvider(f"Failed to initialize Hinglish Whisper ASR: {exc}")
-
-    if settings.asr_provider is ASRProviderName.INDIC_CONFORMER:
-        try:
-            from app.services.asr.indic_conformer_provider import IndicConformerASRProvider
-
-            return IndicConformerASRProvider()
-        except Exception as exc:
-            return UnavailableASRProvider(f"Failed to initialize IndicConformer ASR: {exc}")
-
-    if settings.asr_provider is ASRProviderName.FASTER_WHISPER:
+    if settings.asr_provider in (
+        ASRProviderName.INDIC_WHISPER,
+        ASRProviderName.TANGLISH_WHISPER,
+        ASRProviderName.TANGLISH_MED,
+        ASRProviderName.HINGLISH_WHISPER,
+        ASRProviderName.INDIC_CONFORMER,
+        ASRProviderName.FASTER_WHISPER,
+    ):
         try:
             import faster_whisper  # noqa: F401
         except ImportError:
@@ -137,7 +89,7 @@ def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> 
             )
         from app.services.asr.faster_whisper_provider import FasterWhisperProvider
 
-        return FasterWhisperProvider()
+        return FasterWhisperProvider(language="en")
 
     return UnavailableASRProvider(f"Unknown ASR provider: {settings.asr_provider}")
 

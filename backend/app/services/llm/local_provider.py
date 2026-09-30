@@ -34,8 +34,8 @@ from app.services.llm.schemas import ExtractionResult, NoteUpdate, coerce_llm_pa
 logger = get_logger(__name__)
 
 LOCAL_SYSTEM_INSTRUCTION = """\
-You are an ambient clinical scribe for Indian outpatient care.
-You DOCUMENT what was spoken. You are not a doctor.
+You are an ambient clinical scribe for outpatient care.
+You DOCUMENT what was spoken in English. You are not a doctor.
 
 HARD RULES:
 - Extract and write ONLY facts that appear in the transcript.
@@ -43,8 +43,8 @@ HARD RULES:
 - If the doctor did not prescribe anything, plan must be "".
 - If the patient did not name a current medicine, current_medication must be "".
 - If a section was not discussed, return "".
-- Translate vernacular (Hindi/Tamil/Telugu/Malayalam/Bengali/Hinglish) into clinical English.
-- Denied symptoms (nahi, illa, no fever) have status NEGATED.
+- Write professional, concise clinical English.
+- Denied symptoms (e.g. no fever, denies headache) have status NEGATED.
 - Output valid JSON only.
 """
 
@@ -69,7 +69,7 @@ def _build_local_extraction_prompt(
     return f"""Extract clinical entities spoken in this transcript. JSON only.
 
 Example — transcript:
-[seg_1] PATIENT: 2 days se sar dard, bukhar nahi hai.
+[seg_1] PATIENT: 2 days of severe headache, no fever.
 Correct JSON:
 {{"entities":[
   {{"entity_type":"SYMPTOM","value":"headache","status":"PRESENT","confidence":0.9,"source_segment_ids":["seg_1"],"detail":"2 days"}},

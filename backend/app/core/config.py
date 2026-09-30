@@ -105,17 +105,15 @@ class Settings(BaseSettings):
     tanglish_med_model: str = "surendirakrishna/OHM-Tanglish-MedASR-1.7B-v152"
     hinglish_whisper_model: str = "Oriserve/Whisper-Hindi2Hinglish-Apex"
     indic_conformer_model: str = "ai4bharat/indicconformer_stt_multi_hybrid_rnnt_600m"
-    # "auto" = detect per utterance (code-switching). A code such as "ta" forces
-    # one language for every utterance.
-    indic_asr_language: str = "auto"
-    # Languages spoken in the clinic. Per-utterance detection is restricted to
-    # these, so Tamil is not mistaken for Malayalam or Hindi for Urdu.
-    asr_languages: str = "ta,en,hi"
-    # Code-mixed example sentences that keep English words in Latin script.
+    # Enforce pure English transcription and clinical prompt biasing
+    indic_asr_language: str = "en"
+    asr_languages: str = "en"
     asr_style_prompts: bool = True
     asr_beam_size: int = 5
-    # Never list drug names here — Whisper copies initial_prompt into the transcript.
-    indic_asr_prompt_biasing: str = ""
+    indic_asr_prompt_biasing: str = (
+        "Doctor and patient clinical discussion regarding headache, fever, cough, "
+        "body pain, chest discomfort, nausea, vomiting, medications, Dolo 650, Paracetamol, BP, and vitals."
+    )
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
     huggingface_token: str | None = None
 
