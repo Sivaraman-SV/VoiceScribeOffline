@@ -82,6 +82,7 @@ class NoteStatus(StrEnum):
 class NoteSectionKey(StrEnum):
     CHIEF_COMPLAINT = "chief_complaint"
     HISTORY_OF_PRESENT_ILLNESS = "history_of_present_illness"
+    REVIEW_OF_SYSTEMS = "review_of_systems"
     RELEVANT_MEDICAL_HISTORY = "relevant_medical_history"
     SOCIAL_HISTORY = "social_history"
     FAMILY_HISTORY = "family_history"

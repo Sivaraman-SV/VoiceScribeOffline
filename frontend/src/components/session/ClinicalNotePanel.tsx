@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
-import { Check, Copy, FileText, Link2, Mic, Pencil, ShieldAlert, X } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Check, Copy, Download, FileText, Link2, Mic, Pencil, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 
 import { EmptyState, InlineAlert, Panel } from '@/components/ui/primitives'
+import { NoteFallbackBanner, StreamingNotePreview } from './NoteStatusBlocks'
 import { VitalsDictationModal } from './VitalsDictationModal'
 import {
+  CORE_SECTIONS,
   ENTITY_STATUS_LABELS,
   ENTITY_STATUS_STYLES,
   MOM_SECTION_LABELS,
@@ -13,9 +15,17 @@ import {
   SECTION_LABELS,
   SECTION_ORDER,
 } from '@/constants'
-import type { ClinicalEntity, ClinicalNote, ClinicalSection, EntityGroupKey, NoteSectionKey } from '@/types'
+import type {
+  ClinicalEntity,
+  ClinicalNote,
+  ClinicalSection,
+  EntityGroupKey,
+  ExportFormat,
+  NoteSectionKey,
+} from '@/types'
 import { cn } from '@/utils/cn'
 import { formatRelative } from '@/utils/format'
+import { NOT_MENTIONED_TEXT, downloadText, isDocumented, noteToMarkdown } from '@/utils/noteMarkdown'
 
 const ENTITY_GROUP_TITLES: Record<EntityGroupKey, string> = {
   symptoms: 'Symptoms',
@@ -32,26 +42,33 @@ interface Props {
   encounterType?: string
   onShowSource: (targetKey: string, statement: string) => void
   onSaveSection?: (section: NoteSectionKey, text: string) => Promise<void>
+  /** Server-rendered exports (PDF, FHIR). Markdown is always built client-side. */
+  onExport?: (format: ExportFormat) => Promise<void> | void
+  exportBusy?: boolean
+  streamingSections?: Partial<Record<NoteSectionKey, string>> | null
   actions?: React.ReactNode
 }
 
-const UNDOCUMENTED_PHRASES = new Set([
-  'not mentioned',
-  'not found',
-  'not stated',
-  'not discussed',
-  'none mentioned',
-  'not available',
-  'n/a',
-  'na',
-  'none',
-  'unknown',
-])
+const EMPTY_SECTION: ClinicalSection = {
+  text: '',
+  confidence: 0,
+  evidence: [],
+  review_required: false,
+  review_reason: null,
+  edited_by_human: false,
+}
 
-function isDocumented(section: ClinicalSection | undefined) {
-  const text = (section?.text ?? '').trim()
-  if (!text) return false
-  return !UNDOCUMENTED_PHRASES.has(text.toLowerCase())
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function ClinicalNotePanel({
@@ -62,6 +79,9 @@ export function ClinicalNotePanel({
   encounterType,
   onShowSource,
   onSaveSection,
+  onExport,
+  exportBusy = false,
+  streamingSections = null,
   actions,
 }: Props) {
   const [copied, setCopied] = useState(false)
@@ -105,41 +125,27 @@ export function ClinicalNotePanel({
 
   const content = note.content
   const flagged = note.review_flags ?? []
-  const visibleSections = SECTION_ORDER.filter((key) => isDocumented(content[key]))
+  const visibleSections = SECTION_ORDER.filter(
+    (key) => (!meetingMode && CORE_SECTIONS.includes(key)) || isDocumented(content[key]),
+  )
   const visibleGroups = (Object.keys(ENTITY_GROUP_TITLES) as EntityGroupKey[])
     .map((groupKey) => ({ groupKey, entities: content[groupKey] ?? [] }))
     .filter((group) => group.entities.length > 0)
+  const flaggedTerms = (Object.keys(ENTITY_GROUP_TITLES) as EntityGroupKey[])
+    .flatMap((groupKey) => content[groupKey] ?? [])
+    .filter((entity) => entity.review_required)
+    .flatMap((entity) => [entity.value, entity.normalized_value ?? ''])
+  const title = meetingMode ? 'Minutes of Meeting (MoM)' : 'Ambulatory Care Clinical Note'
+  const markdown = () => noteToMarkdown(note, { title, labels: sectionLabels, sections: visibleSections })
 
   const copyNote = async () => {
-    const lines: string[] = []
-    lines.push(meetingMode ? 'MINUTES OF MEETING (MoM)' : 'AMBULATORY CARE CLINICAL NOTES')
-    lines.push(`Status: ${NOTE_STATUS_LABELS[note.status]}`)
-    if (note.approved_by) lines.push(`Approved by: ${note.approved_by}`)
-    lines.push('----------------------------------------\n')
-
-    for (const key of SECTION_ORDER) {
-      const section = content[key]
-      if (isDocumented(section)) {
-        lines.push(`${(sectionLabels[key] || SECTION_LABELS[key]).toUpperCase()}:`)
-        lines.push(`${section.text}\n`)
-      }
-    }
-
-    for (const groupKey of Object.keys(ENTITY_GROUP_TITLES) as EntityGroupKey[]) {
-      const entities = content[groupKey] ?? []
-      if (entities.length > 0) {
-        lines.push(`${ENTITY_GROUP_TITLES[groupKey].toUpperCase()}:`)
-        lines.push(entities.map((e) => `- ${e.normalized_value ? e.normalized_value : e.value}${e.detail ? ` (${e.detail})` : ''}`).join('\n'))
-        lines.push('')
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(lines.join('\n'))
+    if (await copyToClipboard(markdown())) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {}
+    }
   }
+
+  const exportMarkdown = () => downloadText(markdown(), `clinical-note-${note.session_id}-v${note.version}.md`)
 
   return (
     <>
@@ -176,10 +182,24 @@ export function ClinicalNotePanel({
         }
       >
         <div className="space-y-3 p-3.5">
-          <div className="flex flex-wrap items-center justify-between text-2xs text-slate-400 dark:text-slate-500">
+          <NoteFallbackBanner fallback={content.fallback} />
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-2xs text-slate-400 dark:text-slate-500">
             <span>Updated {formatRelative(note.updated_at)}</span>
             {note.approved_by ? <span className="font-medium text-teal-700 dark:text-teal-400">Signed by {note.approved_by}</span> : null}
+            <span className="flex items-center gap-1" aria-label="Export note">
+              <Download className="h-3 w-3" aria-hidden />
+              <ExportButton label="Markdown" onClick={exportMarkdown} />
+              {onExport ? (
+                <>
+                  <ExportButton label="PDF" disabled={exportBusy} onClick={() => void onExport('PDF')} />
+                  <ExportButton label="FHIR JSON" disabled={exportBusy} onClick={() => void onExport('FHIR')} />
+                </>
+              ) : null}
+            </span>
           </div>
+
+          <StreamingNotePreview sections={streamingSections} />
 
           {flagged.length > 0 ? (
             <InlineAlert kind="warning" title={`${flagged.length} item(s) require review`}>
@@ -197,7 +217,9 @@ export function ClinicalNotePanel({
             <NoteSection
               key={key}
               sectionKey={key}
-              section={content[key]}
+              label={sectionLabels[key] ?? SECTION_LABELS[key]}
+              section={content[key] ?? EMPTY_SECTION}
+              flaggedTerms={flaggedTerms}
               changed={changedSections.includes(key)}
               editable={editable}
               onShowSource={onShowSource}
@@ -229,32 +251,90 @@ export function ClinicalNotePanel({
   )
 }
 
+function ExportButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-2xs font-semibold text-slate-600 dark:text-slate-300 shadow-2xs hover:border-teal-400 hover:text-teal-700 dark:hover:text-teal-300 disabled:opacity-50"
+    >
+      {label}
+    </button>
+  )
+}
+
+/** Marks entity mentions the grounding validator flagged so the reviewer sees exactly which words are unsupported. */
+function HighlightedText({ text, terms }: { text: string; terms: string[] }) {
+  const pattern = useMemo(() => {
+    const unique = [...new Set(terms.map((term) => term.trim()).filter((term) => term.length > 2))]
+    if (unique.length === 0) return null
+    unique.sort((a, b) => b.length - a.length)
+    return new RegExp(`\\b(${unique.map(escapeRegExp).join('|')})\\b`, 'gi')
+  }, [terms])
+
+  if (!pattern) return <>{text}</>
+  const parts = text.split(pattern)
+  if (parts.length === 1) return <>{text}</>
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 === 1 ? (
+          <mark
+            key={index}
+            title="Not confirmed by the transcript: verify before signing"
+            className="rounded-sm bg-amber-200/80 px-0.5 text-amber-950 dark:bg-amber-700/50 dark:text-amber-100"
+          >
+            {part}
+          </mark>
+        ) : (
+          <Fragment key={index}>{part}</Fragment>
+        ),
+      )}
+    </>
+  )
+}
+
 function NoteSection({
   sectionKey,
+  label,
   section,
+  flaggedTerms,
   changed,
   editable,
   onShowSource,
   onSave,
 }: {
   sectionKey: NoteSectionKey
-  section: ClinicalSection | undefined
+  label: string
+  section: ClinicalSection
+  flaggedTerms: string[]
   changed: boolean
   editable: boolean
   onShowSource: (targetKey: string, statement: string) => void
   onSave?: (section: NoteSectionKey, text: string) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(section?.text ?? '')
+  const [draft, setDraft] = useState(section.text)
   const [saving, setSaving] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    if (!editing) setDraft(section?.text ?? '')
-  }, [section?.text, editing])
+    if (!editing) setDraft(section.text)
+  }, [section.text, editing])
 
-  if (!section) return null
+  const documented = isDocumented(section)
   const evidenceCount = section.evidence?.length ?? 0
   const needsReview = section.review_required
+  const grounded =
+    documented && !needsReview && evidenceCount > 0 && section.evidence.every((ref) => ref.validated !== false)
+
+  const copySection = async () => {
+    if (await copyToClipboard(`${label}\n${documented ? section.text : NOT_MENTIONED_TEXT}`)) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+  }
 
   const save = async () => {
     if (!onSave) return
@@ -278,9 +358,15 @@ function NoteSection({
       )}
     >
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 px-3.5 py-2">
-        <h3 className="text-2xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-          {SECTION_LABELS[sectionKey]}
-        </h3>
+        <h3 className="text-2xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{label}</h3>
+        {grounded ? (
+          <span
+            className="badge rounded-full border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-2xs font-semibold text-emerald-800 dark:text-emerald-300"
+            title="Every cited transcript segment was validated"
+          >
+            <ShieldCheck className="h-3 w-3" aria-hidden /> Grounded
+          </span>
+        ) : null}
         {section.edited_by_human ? (
           <span className="badge rounded-full border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-2xs text-slate-600 dark:text-slate-300">
             Edited
@@ -294,8 +380,17 @@ function NoteSection({
         <span className="ml-auto flex items-center gap-1.5">
           <button
             type="button"
+            onClick={() => void copySection()}
+            aria-label={`Copy ${label}`}
+            title={`Copy ${label}`}
+            className="inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-slate-500 dark:text-slate-300 shadow-2xs hover:border-teal-400 hover:text-teal-700 dark:hover:text-teal-300"
+          >
+            {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
+          </button>
+          <button
+            type="button"
             onClick={() => onShowSource(sectionKey, section.text)}
-            aria-label={`Show source for ${SECTION_LABELS[sectionKey]}`}
+            aria-label={`Show source for ${label}`}
             className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-2xs font-semibold text-slate-600 dark:text-slate-300 shadow-2xs hover:border-teal-400 hover:text-teal-700 dark:hover:text-teal-300"
           >
             <Link2 className="h-3 w-3" aria-hidden />
@@ -346,14 +441,16 @@ function NoteSection({
               onChange={(event) => setDraft(event.target.value)}
               rows={4}
               className="field-input font-normal dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
-              aria-label={`Edit ${SECTION_LABELS[sectionKey]}`}
+              aria-label={`Edit ${label}`}
             />
             <p className="mt-1.5 text-2xs text-slate-500 dark:text-slate-400">{SECTION_HINTS[sectionKey]}</p>
           </>
-        ) : isDocumented(section) ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-normal">{section.text}</p>
+        ) : documented ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-normal">
+            <HighlightedText text={section.text} terms={flaggedTerms} />
+          </p>
         ) : (
-          <p className="text-xs text-slate-400 dark:text-slate-500 italic font-normal">— Not discussed in consultation —</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 italic font-normal">{NOT_MENTIONED_TEXT}</p>
         )}
         {needsReview && section.review_reason ? (
           <p className="mt-2 text-2xs font-medium text-amber-700 dark:text-amber-400">{section.review_reason}</p>
@@ -381,7 +478,14 @@ function EntityGroup({
       <div className="p-3.5">
         <ul className="space-y-1.5">
           {entities.map((entity) => (
-            <li key={entity.ref} className="flex flex-wrap items-center gap-2 text-xs">
+            <li
+              key={entity.ref}
+              className={cn(
+                'flex flex-wrap items-center gap-2 text-xs',
+                entity.review_required && 'rounded-md bg-amber-50 dark:bg-amber-950/40 px-1.5 py-1 ring-1 ring-amber-200 dark:ring-amber-900/60',
+              )}
+              title={entity.review_required ? entity.review_reason ?? 'Needs review' : undefined}
+            >
               <span className={cn('badge rounded-full px-2 py-0.5 text-2xs font-semibold', ENTITY_STATUS_STYLES[entity.status])}>
                 {ENTITY_STATUS_LABELS[entity.status]}
               </span>
@@ -392,6 +496,11 @@ function EntityGroup({
                 <span className="text-2xs text-slate-400 dark:text-slate-500 italic">(&ldquo;{entity.value}&rdquo;)</span>
               ) : null}
               {entity.detail ? <span className="text-slate-500 dark:text-slate-400">— {entity.detail}</span> : null}
+              {entity.review_required ? (
+                <span className="inline-flex items-center gap-0.5 text-2xs font-semibold text-amber-700 dark:text-amber-400">
+                  <ShieldAlert className="h-3 w-3" aria-hidden /> Review
+                </span>
+              ) : null}
               <button
                 type="button"
                 onClick={() => onShowSource(entity.ref, entity.value)}

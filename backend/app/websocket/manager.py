@@ -19,6 +19,9 @@ from app.schemas.events import EventType, SocketEvent
 logger = get_logger(__name__)
 
 HISTORY_LIMIT = 400
+# High-frequency previews: not replayed (the final NOTE_UPDATE supersedes them)
+# and not numbered, so they cannot push real events out of the replay buffer.
+TRANSIENT_EVENTS = {EventType.NOTE_STREAM}
 
 
 class SessionConnectionManager:
@@ -60,14 +63,17 @@ class SessionConnectionManager:
 
     # ------------------------------------------------------------------ events
     async def broadcast(self, session_id: str, event_type: EventType, payload: dict[str, Any]) -> SocketEvent:
-        self._sequences[session_id] += 1
+        transient = event_type in TRANSIENT_EVENTS
+        if not transient:
+            self._sequences[session_id] += 1
         event = SocketEvent(
             type=event_type,
             session_id=session_id,
             payload=payload,
-            sequence=self._sequences[session_id],
+            sequence=0 if transient else self._sequences[session_id],
         )
-        self._history[session_id].append(event)
+        if not transient:
+            self._history[session_id].append(event)
         metrics.increment("websocket_events_total", type=event_type.value)
 
         message = event.model_dump(mode="json")

@@ -142,7 +142,10 @@ PHONETIC_CORRECTIONS: Final[list[tuple[re.Pattern[str], str]]] = [
     # Combiflam
     (re.compile(r"\b(?:combi\s*flam|combiflam)\b", re.IGNORECASE), "Combiflam"),
     # Meftal-Spas
-    (re.compile(r"\b(?:meftal\s*[- ]?spas|meftal)\b", re.IGNORECASE), "Meftal-Spas"),
+    (re.compile(r"\b(?:meftal\s*[- ]?spas|meftal|mef\s*tal|mephtal)\b", re.IGNORECASE), "Meftal-Spas"),
+    # Dolo misheard as "dark tablet" / "dollar tablet". The strength is not
+    # added: only "Dolo 650" when 650 was actually spoken (next rule).
+    (re.compile(r"\b(?:dark|dollar|dollo|dhollo|dholo|dolo)\s+(tablets?|tab)\b", re.IGNORECASE), r"Dolo \1"),
     # Dolo 650
     (re.compile(r"\b(?:dolo|dola|dolor|dollo)\s*(?:[- ]?650|six\s*fifty)\b", re.IGNORECASE), "Dolo 650"),
     (re.compile(r"\b(?:dolo|dola|dolor)\b(?=\s*(?:tablet|tab|dose|daily|twice|once|thrice|mg))", re.IGNORECASE), "Dolo"),
@@ -156,7 +159,8 @@ PHONETIC_CORRECTIONS: Final[list[tuple[re.Pattern[str], str]]] = [
     (re.compile(r"\b(?:zerodol\s*[- ]?[ps]p?|zero\s*dol)\b", re.IGNORECASE), "Zerodol"),
     # Pan-D & Pantocid
     (re.compile(r"\b(?:pan\s*[- ]?d|penn\s*[- ]?d)\b", re.IGNORECASE), "Pan-D"),
-    (re.compile(r"\b(?:panto\s*sid|pantocid|pantodac)\b", re.IGNORECASE), "Pantocid"),
+    (re.compile(r"\b(?:pan|pen|panto)\s*[- ]?(?:40|forty)\b", re.IGNORECASE), "Pan 40"),
+    (re.compile(r"\b(?:panto\s*sid|pantocid|pantodac|panto\s*side)\b", re.IGNORECASE), "Pantocid"),
     (re.compile(r"\b(?:omez\s*[- ]?d|omez)\b", re.IGNORECASE), "Omez"),
     (re.compile(r"\b(?:rantac|ran\s*tac|aciloc)\b", re.IGNORECASE), "Rantac"),
     # Digene, Gelusil, Eno
@@ -164,7 +168,7 @@ PHONETIC_CORRECTIONS: Final[list[tuple[re.Pattern[str], str]]] = [
     (re.compile(r"\b(?:gelu\s*sil|gelusil)\b", re.IGNORECASE), "Gelusil"),
     (re.compile(r"\b(?:elec\s*tral|electral|e\s*lectral)\b", re.IGNORECASE), "Electral ORS"),
     # Augmentin & Clavam
-    (re.compile(r"\b(?:ogmentin|aug\s*mentin|augmentin)\b", re.IGNORECASE), "Augmentin"),
+    (re.compile(r"\b(?:ogmentin|aug\s*mentin|augmentin|augmenting|augment\s+in)\b", re.IGNORECASE), "Augmentin"),
     (re.compile(r"\b(?:claw\s*vam|clavam)\b", re.IGNORECASE), "Clavam"),
     # Azithral
     (re.compile(r"\b(?:azithral|a\s*zee|azithromycin)\b", re.IGNORECASE), "Azithral"),
@@ -173,8 +177,8 @@ PHONETIC_CORRECTIONS: Final[list[tuple[re.Pattern[str], str]]] = [
     (re.compile(r"\b(?:mono\s*cef|monocef)\b", re.IGNORECASE), "Monocef"),
     (re.compile(r"\b(?:taxim\s*[- ]?o|taxim)\b", re.IGNORECASE), "Taxim-O"),
     # Cough & Cold
-    (re.compile(r"\b(?:sina\s*rest|sinarest)\b", re.IGNORECASE), "Sinarest"),
-    (re.compile(r"\b(?:cheston\s*cold|cheston)\b", re.IGNORECASE), "Cheston Cold"),
+    (re.compile(r"\b(?:sina\s*rest|sinarest|sinarist|sinnarest|seena\s*rest)\b", re.IGNORECASE), "Sinarest"),
+    (re.compile(r"\b(?:cheston\s*cold|cheston|chest\s+on\s+cold|chesten\s*cold)\b", re.IGNORECASE), "Cheston Cold"),
     (re.compile(r"\b(?:otri\s*vin|otrivin)\b", re.IGNORECASE), "Otrivin"),
     (re.compile(r"\b(?:asco\s*ril|ascoril)\b", re.IGNORECASE), "Ascoril"),
     (re.compile(r"\b(?:bena\s*dryl|benadryl)\b", re.IGNORECASE), "Benadryl"),

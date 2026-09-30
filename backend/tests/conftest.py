@@ -21,6 +21,10 @@ os.environ.update(
         "DATABASE_URL": f"sqlite+aiosqlite:///{TEST_DB.as_posix()}",
         "ALLOW_SQLITE_FALLBACK": "false",
         "AI_MODE": "mock",
+        # Nothing listens on port 9: no test may ever reach a real Ollama on this machine.
+        "LOCAL_LLM_BASE_URL": "http://127.0.0.1:9",
+        "LOCAL_LLM_WARMUP_ON_STARTUP": "false",
+        "ASR_WARMUP_ON_STARTUP": "false",
         "GEMINI_API_KEY": "",
         "ENVIRONMENT": "test",
         "LOG_LEVEL": "WARNING",

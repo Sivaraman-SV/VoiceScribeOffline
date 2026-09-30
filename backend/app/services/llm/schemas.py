@@ -68,6 +68,7 @@ class GeneratedNote(BaseModel):
 
     chief_complaint: GeneratedSection = Field(default_factory=GeneratedSection)
     history_of_present_illness: GeneratedSection = Field(default_factory=GeneratedSection)
+    review_of_systems: GeneratedSection = Field(default_factory=GeneratedSection)
     relevant_medical_history: GeneratedSection = Field(default_factory=GeneratedSection)
     social_history: GeneratedSection = Field(default_factory=GeneratedSection)
     family_history: GeneratedSection = Field(default_factory=GeneratedSection)
@@ -173,7 +174,36 @@ def _coerce_extraction(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+_SECTION_ALIASES = {
+    "past_medical_history": "relevant_medical_history",
+    "past_history": "relevant_medical_history",
+    "medical_history": "relevant_medical_history",
+    "pmh": "relevant_medical_history",
+    "ros": "review_of_systems",
+    "hpi": "history_of_present_illness",
+    "cc": "chief_complaint",
+    "presenting_complaint": "chief_complaint",
+    "medications": "current_medication",
+    "current_medications": "current_medication",
+    "home_medications": "current_medication",
+    "examination": "physical_examination",
+    "vitals": "physical_examination",
+    "investigations": "previous_investigation",
+    "followup": "follow_up",
+}
+
+
+def _apply_section_aliases(note: dict[str, Any]) -> dict[str, Any]:
+    resolved = dict(note)
+    for alias, key in _SECTION_ALIASES.items():
+        if alias in resolved and not resolved.get(key):
+            resolved[key] = resolved[alias]
+    return resolved
+
+
 def _coerce_section(section: Any) -> dict[str, Any]:
+    if isinstance(section, list):
+        section = "; ".join(str(item).strip() for item in section if str(item).strip())
     if isinstance(section, str):
         text = section
         refs: list[str] = []
@@ -199,10 +229,11 @@ def _coerce_section(section: Any) -> dict[str, Any]:
 def _coerce_note_update(payload: dict[str, Any]) -> dict[str, Any]:
     note = payload.get("note")
     if not isinstance(note, dict):
-        if any(key in payload for key in _NOTE_SECTION_KEYS):
-            note = {key: payload.get(key) for key in _NOTE_SECTION_KEYS}
+        if any(key in payload for key in (*_NOTE_SECTION_KEYS, *_SECTION_ALIASES)):
+            note = payload
         else:
             note = {}
+    note = _apply_section_aliases(note)
     return {
         "note": {key: _coerce_section(note.get(key)) for key in _NOTE_SECTION_KEYS},
         "changed_sections": payload.get("changed_sections") or [],

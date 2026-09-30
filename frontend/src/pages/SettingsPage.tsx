@@ -94,9 +94,9 @@ export function SettingsPage() {
           </div>
         </Panel>
 
-        <Panel title="Offline pipeline (RTX 4050)" icon={<Cpu className="h-3.5 w-3.5" aria-hidden />} bodyClassName="space-y-3 p-4">
+        <Panel title="Pipeline" icon={<Cpu className="h-3.5 w-3.5" aria-hidden />} bodyClassName="space-y-3 p-4">
           <p className="text-xs text-navy-600">
-            Audio stays on this PC. Speech-to-text is Faster-Whisper on CPU. The SOAP note is Qwen 2.5 7B via Ollama on the GPU.
+            Speech-to-text is Faster-Whisper. The SOAP note is Gemma 2 9B via Ollama on the configured LLM server.
             Invented medicines and diagnoses are dropped if they are not in the transcript.
           </p>
 
@@ -122,10 +122,11 @@ export function SettingsPage() {
             <p className="text-xs text-navy-500">Load the backend to see the live pipeline.</p>
           )}
 
-          <InlineAlert kind="info" title={String(status?.pipeline?.target_gpu ?? 'NVIDIA RTX 4050 laptop (6 GB)')}>
-            {status?.pipeline?.vram_budget ??
-              'Qwen 2.5 7B Q4 ~4.7 GB on GPU. Faster-Whisper turbo int8 runs on CPU so they do not share VRAM.'}
-          </InlineAlert>
+          {status?.pipeline?.llm_server ? (
+            <InlineAlert kind="info" title={`LLM server: ${status.pipeline.llm_server}`}>
+              Model fallback chain: {status.pipeline.llm_fallback_chain}
+            </InlineAlert>
+          ) : null}
 
           <dl className="grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
             {status
@@ -172,7 +173,7 @@ export function SettingsPage() {
             title="Diarization"
             name={status?.providers.diarization.name ?? '—'}
             mock={Boolean(status?.providers.diarization.mock)}
-            detail="Local two-speaker clustering on CPU. Do not enable pyannote on a 6 GB laptop — it would steal VRAM from Qwen 7B."
+            detail="Local two-speaker clustering on CPU. Do not enable pyannote on a 6 GB laptop."
           />
           <ProviderCard
             title="Terminology"

@@ -554,6 +554,7 @@ def export_pdf(payload: dict[str, Any]) -> bytes:
     AMBULATORY_SECTIONS = [
         ("Presenting Complaint", ["chief_complaint"]),
         ("History of Present Illness", ["history_of_present_illness"]),
+        ("Review of Systems", ["review_of_systems"]),
         ("Past History", ["relevant_medical_history", "past_history"]),
         ("Social History", ["social_history"]),
         ("Family History", ["family_history"]),

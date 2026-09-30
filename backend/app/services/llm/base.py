@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from app.services.llm.schemas import ExtractionResult, NoteUpdate
 
@@ -39,6 +39,18 @@ class LLMUnavailable(LLMError):
     code = "LLM_UNAVAILABLE"
 
 
+class LLMModelNotFound(LLMUnavailable):
+    """The server is up but does not have the requested model."""
+
+    code = "LLM_MODEL_NOT_FOUND"
+
+
+class LLMServiceUnavailable(LLMUnavailable):
+    """Every configured model failed (or the server is unreachable)."""
+
+    code = "LLM_SERVICE_UNAVAILABLE"
+
+
 class LLMInvalidOutput(LLMError):
     """Empty, malformed or schema-invalid response."""
 
@@ -48,6 +60,9 @@ class LLMInvalidOutput(LLMError):
 class LLMSafetyBlocked(LLMError):
     retryable = False
     code = "LLM_SAFETY_BLOCKED"
+
+
+PartialNoteCallback = Callable[[dict[str, str]], Awaitable[None]]
 
 
 @dataclass(slots=True)
@@ -89,7 +104,9 @@ class LLMProvider(abc.ABC):
         segments: list[dict[str, Any]],
         rule_based_candidates: list[dict[str, Any]] | None = None,
         existing_entities: list[dict[str, Any]] | None = None,
-    ) -> ExtractionResponse: ...
+        on_partial_note: PartialNoteCallback | None = None,
+    ) -> ExtractionResponse:
+        """``on_partial_note`` receives section texts while a streaming provider generates."""
 
     @abc.abstractmethod
     async def generate_note(

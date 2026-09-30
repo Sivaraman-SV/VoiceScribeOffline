@@ -175,6 +175,15 @@ class SpeakerRoleAttributionService:
         "prescribe",
         "follow up",
         "schedule",
+        # Hindi / Tamil / Telugu clinical inquiry
+        "kab se",
+        "kitne din",
+        "kya takleef",
+        "evvalavu naal",
+        "eppo irundhu",
+        "enna problem",
+        "enni rojulu",
+        "emaindi",
     )
     PATIENT_MARKERS = (
         "i've been",
@@ -208,6 +217,13 @@ class SpeakerRoleAttributionService:
         "i can't",
         "makes me feel",
         "it comes and goes",
+        # Hindi / Tamil / Telugu first-person complaints
+        "mujhe",
+        "doctor sahab",
+        "enakku",
+        "irukku",
+        "naaku",
+        "doctor garu",
     )
     NURSE_MARKERS = (
         "his temperature",

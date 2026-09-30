@@ -73,14 +73,30 @@ class Settings(BaseSettings):
     gemini_temperature: float = 0.1
 
     # --- Local / Offline LLM (Ollama / llama.cpp) --------------------------
-    # Gemma 2 9B: SOTA clinical reasoning, fast structured SOAP documentation.
+    # The base URL may point at this machine or at a remote GPU host (e.g. an
+    # Ollama server tunnelled out of a Kaggle notebook).
     local_llm_base_url: str = "http://localhost:11434/v1"
     local_llm_model: str = "gemma2:9b"
+    # Tried in order when the primary model is missing or returns unusable JSON.
+    local_llm_fallback_models: str = "gemma2:2b"
+    # "ollama" uses the native /api/chat endpoint, the only one that honours
+    # num_ctx / keep_alive. "openai" is for llama.cpp / vLLM servers.
+    local_llm_api: str = "ollama"
+    local_llm_api_key: str | None = None
     local_llm_timeout_seconds: float = 180.0
+    local_llm_connect_timeout_seconds: float = 15.0
     local_llm_max_retries: int = 2
-    local_llm_temperature: float = 0.0
+    local_llm_temperature: float = 0.1
     local_llm_num_ctx: int = 4096
-    local_llm_max_tokens: int = 1500
+    local_llm_max_tokens: int = 1200
+    local_llm_keep_alive: str = "30m"
+    local_llm_stream: bool = True
+    # Off by default: a warm-up request makes whichever host serves the base URL
+    # load the model into memory.
+    local_llm_warmup_on_startup: bool = False
+    # After a failed LLM call, incremental (mid-consultation) updates skip the
+    # LLM for this long. The final end-of-consultation pass always retries it.
+    llm_retry_cooldown_seconds: float = 20.0
 
     # --- database ----------------------------------------------------------
     database_url: str = "postgresql+asyncpg://medscribe:medscribe@localhost:5432/medscribe"
@@ -94,13 +110,19 @@ class Settings(BaseSettings):
     demo_segment_interval_seconds: float = 2.5
 
     # --- pipeline providers ------------------------------------------------
-    # RTX 4050 (6 GB): Whisper on CPU so Qwen 7B can use the GPU.
+    # Server GPU defaults (RTX 3090/4090, T4, A10G). On a low-VRAM laptop set
+    # ASR_DEVICE=cpu and ASR_COMPUTE_TYPE=int8.
     asr_provider: ASRProviderName = ASRProviderName.FASTER_WHISPER
     diarization_provider: DiarizationProviderName = DiarizationProviderName.LOCAL
     faster_whisper_model: str = "large-v3-turbo"
     parakeet_model: str = "nvidia/parakeet-ctc-0.6b"
-    asr_device: str = "cpu"
-    asr_compute_type: str = "int8"
+    asr_device: str = "cuda"
+    asr_compute_type: str = "float16"
+    # Parallel decodes per loaded Whisper model (one per concurrent consultation room).
+    asr_num_workers: int = 2
+    asr_cpu_threads: int = 4
+    # Off by default so starting the backend never loads Whisper on its own.
+    asr_warmup_on_startup: bool = False
     indic_whisper_model: str = "ai4bharat/whisper-medium-hi_alldata_multigpu"
     indic_whisper_use_transformers: bool = False
     tanglish_whisper_model: str = "Badri0510/whisper-tanglish-DPO-production"
@@ -111,7 +133,7 @@ class Settings(BaseSettings):
     indic_asr_language: str = "en"
     asr_languages: str = "en"
     asr_style_prompts: bool = True
-    asr_beam_size: int = 5
+    asr_beam_size: int = 2
     indic_asr_prompt_biasing: str = (
         "Doctor and patient clinical discussion regarding headache, fever, cough, "
         "body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, "
@@ -152,7 +174,7 @@ class Settings(BaseSettings):
             return AIMode.GEMINI.value
         return value
 
-    @field_validator("gemini_api_key", "huggingface_token", mode="before")
+    @field_validator("gemini_api_key", "huggingface_token", "local_llm_api_key", mode="before")
     @classmethod
     def _blank_to_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
@@ -189,6 +211,12 @@ class Settings(BaseSettings):
         return path
 
     @property
+    def local_llm_model_chain(self) -> list[str]:
+        """Primary model first, then configured fallbacks, without duplicates."""
+        chain = [self.local_llm_model, *self.local_llm_fallback_models.split(",")]
+        return list(dict.fromkeys(model.strip() for model in chain if model and model.strip()))
+
+    @property
     def is_sqlite(self) -> bool:
         return self.database_url.startswith("sqlite")
 
@@ -205,14 +233,14 @@ class Settings(BaseSettings):
         else:
             asr_model = self.faster_whisper_model
         return {
-            "target_gpu": "NVIDIA RTX 4050 laptop (6 GB VRAM)",
+            "llm_server": f"{self.local_llm_base_url} ({self.local_llm_api} API)",
+            "llm_fallback_chain": " → ".join(self.local_llm_model_chain),
             "audio": "Browser 16 kHz mono WAV → local preprocess (VAD)",
             "asr": f"{asr} / {asr_model} ({self.asr_compute_type} on {self.asr_device})",
             "languages": f"{self.asr_languages} ({'per-utterance code-switching' if self.indic_asr_language in ('auto', '') else self.indic_asr_language})",
             "diarization": self.diarization_provider.value,
             "llm": f"{self.effective_ai_mode.value} / {self.local_llm_model if self.effective_ai_mode.value in ('local', 'ollama') else self.gemini_model}",
-            "grounding": "Entities and plan/assessment must match the transcript or they are dropped",
-            "vram_budget": "Qwen 2.5 7B Q4 ~4.7 GB on GPU; Faster-Whisper turbo int8 on CPU",
+            "grounding": "Entities must match the transcript; assessment/plan must match the doctor's own words",
         }
 
 

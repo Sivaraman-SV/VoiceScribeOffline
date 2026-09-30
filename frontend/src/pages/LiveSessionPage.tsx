@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 
 import { ConsultationPipelineAnimation } from '@/components/session/ConsultationPipelineAnimation'
+import { NoteFallbackBanner, StreamingNotePreview } from '@/components/session/NoteStatusBlocks'
 import { VitalsDictationModal } from '@/components/session/VitalsDictationModal'
 import { InlineAlert } from '@/components/ui/primitives'
 import { MedicalPulseLoader } from '@/components/ui/MedicalAnimations'
@@ -39,6 +40,7 @@ export function LiveSessionPage() {
     refresh,
     setSession,
     setNote,
+    streamingSections,
   } = useSessionStore()
 
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -409,7 +411,11 @@ export function LiveSessionPage() {
 
             {/* Card Body */}
             <div className="flex-1 min-h-0 p-6 overflow-y-auto flex flex-col items-center justify-center">
-              {isProcessing ? (
+              {isProcessing && streamingSections ? (
+                <div className="w-full h-full">
+                  <StreamingNotePreview sections={streamingSections} />
+                </div>
+              ) : isProcessing ? (
                 /* Animated Pipeline Sequence */
                 <ConsultationPipelineAnimation
                   stage={stage}
@@ -419,6 +425,7 @@ export function LiveSessionPage() {
               ) : hasNoteContent ? (
                 /* Structured SOAP Note Content */
                 <div className="w-full h-full space-y-4 text-left animate-fade-in">
+                  <NoteFallbackBanner fallback={note?.content.fallback} />
                   {SECTION_ORDER.map((key) => {
                     const contentRecord = note?.content as unknown as Record<string, unknown> | undefined
                     const sectionContent = contentRecord?.[key] as { text?: string } | string | undefined

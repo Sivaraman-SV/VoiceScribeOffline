@@ -34,9 +34,29 @@ _ADVICE_MARKERS = (
 )
 
 
+_PLACEHOLDERS = {
+    "not mentioned",
+    "not mentioned in consultation",
+    "unstated",
+    "unstated in consultation",
+    "not stated",
+    "not discussed",
+    "not documented",
+    "not recorded",
+    "not reported",
+    "not applicable",
+    "not found",
+    "n/a",
+    "na",
+    "none",
+    "nil",
+    "",
+}
+
+
 @dataclass(slots=True)
 class ValidationIssue:
-    severity: str  # "ERROR" (dropped) or "WARNING" (kept, flagged)
+    severity: str  # "ERROR" (dropped), "WARNING" (kept, flagged) or "INFO" (logged only)
     target: str
     message: str
 
@@ -202,10 +222,9 @@ class OutputValidator:
                     lower_text = text.lower()
                     break
 
-            placeholder = text.lower() in ("not mentioned", "n/a", "none", "not found")
-            if placeholder:
+            if text.lower().rstrip(".") in _PLACEHOLDERS:
                 text = ""
-                issues.append(ValidationIssue("WARNING", key, "placeholder section text cleared"))
+                issues.append(ValidationIssue("INFO", key, "placeholder section text cleared"))
 
             documented = bool(text)
             if documented and not refs:

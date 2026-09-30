@@ -51,6 +51,7 @@ export function ReviewPage() {
     selectSegment,
     focusEvidence,
     setNote,
+    streamingSections,
   } = useSessionStore()
 
   const [versions, setVersions] = useState<NoteVersion[]>([])
@@ -311,6 +312,9 @@ export function ReviewPage() {
           editable={!isApproved}
           onShowSource={(targetKey, statement) => focusEvidence({ targetKey, statement, kind: 'SECTION' })}
           onSaveSection={saveSection}
+          onExport={exportAs}
+          exportBusy={busy}
+          streamingSections={streamingSections}
         />
 
         {/* Col 3: Tabbed Clinical Insights, Evidence, Versions & Info */}

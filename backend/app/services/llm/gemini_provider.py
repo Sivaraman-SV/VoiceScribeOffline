@@ -236,6 +236,7 @@ class GeminiProvider(LLMProvider):
         segments: list[dict[str, Any]],
         rule_based_candidates: list[dict[str, Any]] | None = None,
         existing_entities: list[dict[str, Any]] | None = None,
+        on_partial_note: Any = None,
     ) -> ExtractionResponse:
         prompt = build_extraction_prompt(
             session_context=session_context,

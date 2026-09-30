@@ -16,14 +16,22 @@ from app.services.llm.schemas import ExtractionResult, NoteUpdate, coerce_llm_pa
 from app.services.types import AudioFrame
 
 
-def test_offline_defaults_fit_rtx_4050() -> None:
+def test_offline_defaults_target_gpu_server() -> None:
     fields = Settings.model_fields
     assert fields["asr_provider"].default is ASRProviderName.FASTER_WHISPER
     assert fields["faster_whisper_model"].default == "large-v3-turbo"
     assert fields["local_llm_model"].default == "gemma2:9b"
-    assert fields["asr_device"].default == "cpu"
+    assert fields["asr_device"].default == "cuda"
+    assert fields["asr_compute_type"].default == "float16"
+    assert fields["asr_beam_size"].default == 2
+    assert fields["asr_num_workers"].default == 2
     assert fields["indic_whisper_use_transformers"].default is False
-    assert fields["local_llm_temperature"].default == 0.0
+    assert fields["local_llm_temperature"].default == 0.1
+    assert fields["local_llm_num_ctx"].default == 4096
+    assert fields["local_llm_max_tokens"].default == 1200
+    # Nothing loads a model at start-up unless explicitly enabled.
+    assert fields["asr_warmup_on_startup"].default is False
+    assert fields["local_llm_warmup_on_startup"].default is False
 
 
 def _tone(seconds: float, hz: float, sample_rate: int = 16000) -> bytes:
@@ -204,5 +212,6 @@ async def test_multi_symptom_clinical_extraction() -> None:
     assert "body pain" in cc.lower() or "pain" in cc.lower()
     assert "breathing" in cc.lower()
     assert "two days" in cc.lower()
-    assert note_resp.result.note.assessment.text != ""
-    assert "Not mentioned" not in note_resp.result.note.assessment.text
+    # Patient-only history: the doctor voiced no impression or plan, so none is written.
+    assert note_resp.result.note.assessment.text == "Not mentioned"
+    assert note_resp.result.note.plan.text == "Not mentioned"

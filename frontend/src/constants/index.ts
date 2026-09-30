@@ -90,6 +90,7 @@ export const NOTE_STATUS_LABELS: Record<NoteStatus, string> = {
 export const SECTION_ORDER: NoteSectionKey[] = [
   'chief_complaint',
   'history_of_present_illness',
+  'review_of_systems',
   'relevant_medical_history',
   'social_history',
   'family_history',
@@ -107,6 +108,7 @@ export const SECTION_ORDER: NoteSectionKey[] = [
 export const SECTION_LABELS: Record<NoteSectionKey, string> = {
   chief_complaint: 'Presenting Complaint',
   history_of_present_illness: 'History of Present Illness',
+  review_of_systems: 'Review of Systems',
   relevant_medical_history: 'Past History',
   social_history: 'Social History',
   family_history: 'Family History',
@@ -121,6 +123,21 @@ export const SECTION_LABELS: Record<NoteSectionKey, string> = {
   follow_up: 'Follow-up & Next Steps',
 }
 
+/** Always shown, as "Not mentioned" when undiscussed, so a gap is never mistaken for an omission. */
+export const CORE_SECTIONS: NoteSectionKey[] = [
+  'chief_complaint',
+  'history_of_present_illness',
+  'review_of_systems',
+  'relevant_medical_history',
+  'social_history',
+  'current_medication',
+  'allergies',
+  'physical_examination',
+  'assessment',
+  'plan',
+  'follow_up',
+]
+
 export const MOM_SECTION_LABELS: Partial<Record<NoteSectionKey, string>> = {
   chief_complaint: 'Meeting Agenda & Objectives',
   history_of_present_illness: 'Discussion & Member Contributions',
@@ -133,6 +150,7 @@ export const MOM_SECTION_LABELS: Partial<Record<NoteSectionKey, string>> = {
 export const SECTION_HINTS: Record<NoteSectionKey, string> = {
   chief_complaint: 'The main presenting symptoms or reasons for consultation.',
   history_of_present_illness: 'Detailed symptoms, timeline, laterality, and triggers.',
+  review_of_systems: 'Other systems asked about: positives and pertinent negatives.',
   relevant_medical_history: 'Past health conditions, surgeries, and chronic illnesses.',
   social_history: 'Lifestyle, exercise, gym, diet, supplements, and habits.',
   family_history: 'Familial and hereditary conditions.',

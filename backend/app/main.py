@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -52,11 +53,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "demo_mode": settings.enable_demo_mode,
         },
     )
+    warmups = _start_warmups()
     try:
         yield
     finally:
+        for task in warmups:
+            task.cancel()
         await dispose_database()
         logger.info("application_stopped")
+
+
+def _start_warmups() -> list[asyncio.Task]:
+    """Opt-in only: each warm-up loads a model on whichever host serves it."""
+    tasks: list[asyncio.Task] = []
+    if settings.local_llm_warmup_on_startup and settings.effective_ai_mode.value in ("local", "ollama"):
+        from app.services.llm.local_provider import LocalLLMProvider
+
+        tasks.append(asyncio.create_task(LocalLLMProvider().warmup(), name="llm-warmup"))
+    if settings.asr_warmup_on_startup and settings.asr_provider.value == "faster_whisper":
+        from app.services.asr.faster_whisper_provider import FasterWhisperProvider
+
+        tasks.append(asyncio.create_task(FasterWhisperProvider().warmup(), name="asr-warmup"))
+    return tasks
 
 
 app = FastAPI(

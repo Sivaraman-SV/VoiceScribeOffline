@@ -21,6 +21,7 @@ from app.models.enums import EntityStatus, EntityType, NoteStatus
 SECTION_KEYS: tuple[str, ...] = (
     "chief_complaint",
     "history_of_present_illness",
+    "review_of_systems",
     "relevant_medical_history",
     "social_history",
     "family_history",
@@ -45,6 +46,7 @@ ENTITY_KEYS: tuple[str, ...] = (
 SECTION_LABELS: dict[str, str] = {
     "chief_complaint": "Presenting Complaint",
     "history_of_present_illness": "History of Present Illness",
+    "review_of_systems": "Review of Systems",
     "relevant_medical_history": "Past History",
     "social_history": "Social History",
     "family_history": "Family History",
@@ -115,11 +117,21 @@ class ClinicalSection(BaseModel):
         return min(max(value, 0.0), 1.0)
 
 
+class NoteFallback(BaseModel):
+    """Set when the note was written by the rule-based provider instead of the LLM."""
+
+    code: str
+    label: str
+    message: str
+    at: str | None = None
+
+
 class ClinicalNoteContent(BaseModel):
     """The full clinical note document (stored as JSON on ``clinical_notes``)."""
 
     chief_complaint: ClinicalSection = Field(default_factory=ClinicalSection)
     history_of_present_illness: ClinicalSection = Field(default_factory=ClinicalSection)
+    review_of_systems: ClinicalSection = Field(default_factory=ClinicalSection)
     relevant_medical_history: ClinicalSection = Field(default_factory=ClinicalSection)
     social_history: ClinicalSection = Field(default_factory=ClinicalSection)
     family_history: ClinicalSection = Field(default_factory=ClinicalSection)
@@ -142,6 +154,7 @@ class ClinicalNoteContent(BaseModel):
     generated_at: str | None = None
     model: str | None = None
     version: int = 0
+    fallback: NoteFallback | None = None
 
     def sections(self) -> dict[str, ClinicalSection]:
         return {key: getattr(self, key) for key in SECTION_KEYS if hasattr(self, key)}
@@ -189,6 +202,7 @@ class NotePatch(BaseModel):
 
     chief_complaint: str | None = None
     history_of_present_illness: str | None = None
+    review_of_systems: str | None = None
     relevant_medical_history: str | None = None
     social_history: str | None = None
     family_history: str | None = None

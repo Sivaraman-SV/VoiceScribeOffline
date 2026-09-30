@@ -47,9 +47,9 @@ from app.services.asr.medical_normalizer import normalize_medical_transcript
 from app.services.audio import AudioPreprocessingService, RawAudio, SimulationAudioProvider
 from app.services.diarization import DiarizationService, build_diarization_provider
 from app.services.evidence import EvidenceLinkingService
+from app.schemas.clinical import NoteFallback
 from app.services.llm import (
     LLMAuthError,
-    LLMError,
     LLMProvider,
     OutputValidator,
     build_llm_provider,
@@ -75,26 +75,26 @@ ENTITY_GROUP_BY_TYPE: dict[EntityType, str] = {
 }
 
 
-def _public_llm_message(provider: str, exc: LLMError) -> str:
-    label = {"gemini": "Gemini", "local": "Local LLM", "ollama": "Ollama"}.get(provider, provider)
+LLM_SERVICE_UNAVAILABLE = "LLM_SERVICE_UNAVAILABLE"
+
+
+def fallback_label(provider: LLMProvider) -> str:
+    if provider.name == "local":
+        return "OFFLINE FALLBACK - OLLAMA DISCONNECTED"
+    return f"OFFLINE FALLBACK - {provider.name.upper()} UNAVAILABLE"
+
+
+def _public_llm_message(provider: str, exc: Exception) -> str:
+    label = {"gemini": "Gemini", "local": "Local LLM (Ollama)", "ollama": "Ollama"}.get(provider, provider)
     err_str = str(exc).lower()
     if "blocked by your local network firewall" in err_str or "fortiguard" in err_str:
         return f"{label} was blocked by your local network firewall (FortiGuard AI filter). Connect to a mobile hotspot or VPN to use Gemini."
     if "ssl certificate verification failed" in err_str:
         return f"{label} SSL verification failed. Set GEMINI_VERIFY_SSL=false in .env if on an inspected network."
-    if exc.code == "LLM_INVALID_OUTPUT":
-        return (
-            f"{label} replied, but the JSON was incomplete so it could not be used. "
-            "A draft note was filled from the transcript instead."
-        )
-    if exc.code == "LLM_UNAVAILABLE":
-        return f"{label} could not complete this request. A draft note was filled from the transcript instead."
-    if exc.code == "LLM_RATE_LIMIT":
-        return (
-            f"{label} hit its free-tier quota. This draft was filled from the transcript on this PC; "
-            "retry later when the quota resets."
-        )
-    return str(exc)[:240]
+    code = getattr(exc, "code", "")
+    if code == "LLM_RATE_LIMIT":
+        return f"{label} hit its free-tier quota; retry later when the quota resets."
+    return f"{label} failed: {str(exc)[:300]}"
 
 
 @dataclass
@@ -126,6 +126,9 @@ class SessionRuntime:
     last_ai_run: float = 0.0
     ai_degraded: bool = False
     last_ai_error: dict[str, Any] | None = None
+    last_ai_failure: float = 0.0
+    fallback_reason: dict[str, Any] | None = None
+    last_text_role: str | None = None
     stage: ProcessingStage = ProcessingStage.IDLE
     utterances_by_speaker: dict[str, list[str]] = field(default_factory=dict)
     stopped: bool = False
@@ -431,19 +434,23 @@ class SessionPipeline:
             if not assembled:
                 return []
 
-            # Fallback: if audio diarization detected only 1 speaker,
-            # use Gemini text analysis to split by conversational role.
+            # Audio diarization found only one speaker: split turns by
+            # conversational role instead (offline unless Gemini is configured).
             unique_speakers = {seg.speaker_label for seg in assembled}
-            if len(unique_speakers) <= 1 and len(assembled) >= 2 and settings.gemini_configured:
+            if len(unique_speakers) <= 1 and len(assembled) >= 2:
                 await self._emit_stage(
                     runtime, ProcessingStage.ROLE_ATTRIBUTION, "Splitting speakers by conversation",
                 )
-                from app.services.diarization.text_splitter import GeminiTextSplitter  # noqa: PLC0415
-                splitter = GeminiTextSplitter()
-                splits = await splitter.split([
-                    {"ref": seg.ref, "text": seg.text} for seg in assembled
-                ])
+                from app.services.diarization.text_splitter import (  # noqa: PLC0415
+                    ClinicalTextSplitter,
+                    GeminiTextSplitter,
+                )
+                items = [{"ref": seg.ref, "text": seg.text} for seg in assembled]
+                splits = await GeminiTextSplitter().split(items) if settings.gemini_configured else {}
+                if not splits:
+                    splits = ClinicalTextSplitter().split(items, previous_role=runtime.last_text_role)
                 if splits:
+                    runtime.last_text_role = splits.get(assembled[-1].ref, runtime.last_text_role)
                     for seg in assembled:
                         role = splits.get(seg.ref)
                         if role == "doctor":
@@ -643,6 +650,14 @@ class SessionPipeline:
         ]
 
         await self._emit_stage(runtime, ProcessingStage.LLM_STRUCTURING, "Clinical structuring")
+
+        async def stream_partial(sections: dict[str, str]) -> None:
+            await manager.broadcast(
+                runtime.session_id,
+                EventType.NOTE_STREAM,
+                {"sections": sections, "model": runtime.llm.model, "verified": False},
+            )
+
         provider, extraction = await self._call_provider(
             runtime,
             "extraction",
@@ -651,7 +666,9 @@ class SessionPipeline:
                 segments=prompt_segments,
                 rule_based_candidates=rule_hints,
                 existing_entities=existing_payload,
+                on_partial_note=stream_partial,
             ),
+            final=final,
         )
         if extraction is None:
             await self._flag_review(runtime, "Clinical extraction unavailable")
@@ -694,6 +711,7 @@ class SessionPipeline:
                 ],
                 current_note=current_content.model_dump(mode="json"),
             ),
+            final=final,
         )
         if note_response is None:
             await self._flag_review(runtime, "Note generation unavailable")
@@ -720,6 +738,7 @@ class SessionPipeline:
             version=note_version,
             model=note_provider.model,
         )
+        self._mark_fallback(runtime, outcome, note_provider)
 
         await self._emit_stage(runtime, ProcessingStage.NOTE_STATE, "Updating clinical note")
         await self._persist_note(runtime, note_id, outcome, note_provider, final=final)
@@ -730,52 +749,101 @@ class SessionPipeline:
         )
         return True
 
-    async def _call_provider(self, runtime: SessionRuntime, purpose: str, call) -> tuple[LLMProvider, Any]:
-        """Gemini first; rule-based mock if Gemini is unavailable."""
-        provider = runtime.llm if not runtime.ai_degraded else get_fallback_provider()
+    async def _call_provider(
+        self, runtime: SessionRuntime, purpose: str, call, *, final: bool = False
+    ) -> tuple[LLMProvider, Any]:
+        """LLM first. On failure: full stack trace, loud LLM_SERVICE_UNAVAILABLE error,
+        then a rule-based draft that is labelled as such on the note.
+
+        The primary is retried on every update (the local provider walks its own
+        model fallback chain). Mid-consultation updates skip it for a short
+        cooldown after a failure; the final pass always retries it.
+        """
+        primary = runtime.llm
+        fallback = get_fallback_provider()
+        cooling = (
+            runtime.ai_degraded
+            and not final
+            and time.monotonic() - runtime.last_ai_failure < settings.llm_retry_cooldown_seconds
+        )
+        if not cooling:
+            try:
+                result = await call(primary)
+                # Only the single-pass extraction proves recovery; a note call succeeding
+                # after that same update's extraction failed must not hide the failure.
+                if purpose == "extraction":
+                    if runtime.ai_degraded:
+                        logger.info("llm_recovered", extra={"session_id": runtime.session_id})
+                    runtime.ai_degraded = False
+                    runtime.last_ai_error = None
+                    runtime.fallback_reason = None
+                return primary, result
+            except Exception as exc:  # noqa: BLE001 - every failure is surfaced below
+                cause = getattr(exc, "code", type(exc).__name__)
+                logger.exception(
+                    "llm_service_unavailable",
+                    extra={
+                        "session_id": runtime.session_id,
+                        "purpose": purpose,
+                        "provider": primary.name,
+                        "model": primary.model,
+                        "cause": cause,
+                    },
+                )
+                message = _public_llm_message(primary.name, exc)
+                runtime.ai_degraded = True
+                runtime.last_ai_failure = time.monotonic()
+                runtime.last_ai_error = {
+                    "code": LLM_SERVICE_UNAVAILABLE,
+                    "cause": cause,
+                    "message": message,
+                    "purpose": purpose,
+                }
+                runtime.fallback_reason = {
+                    "code": LLM_SERVICE_UNAVAILABLE,
+                    "label": fallback_label(primary),
+                    "message": message,
+                }
+                metrics.increment("ai_degraded_total", code=cause)
+                await self._emit_error(
+                    runtime,
+                    LLM_SERVICE_UNAVAILABLE,
+                    f"[{fallback_label(primary)}] {message} "
+                    "The note is a rule-based draft extracted from the transcript and must be reviewed.",
+                    ProcessingStage.LLM_STRUCTURING,
+                    recoverable=not isinstance(exc, LLMAuthError),
+                )
+
         try:
-            result = await call(provider)
-            if not runtime.ai_degraded:
-                runtime.last_ai_error = None
-            return provider, result
-        except LLMError as exc:
-            runtime.last_ai_error = {"code": exc.code, "message": str(exc)[:300], "purpose": purpose}
-            runtime.ai_degraded = True
-            metrics.increment("ai_degraded_total", code=exc.code)
-            logger.warning(
-                "llm_call_degraded",
-                extra={"session_id": runtime.session_id, "purpose": purpose, "code": exc.code},
-            )
-            await self._emit_error(
-                runtime,
-                exc.code,
-                _public_llm_message(provider.name, exc),
-                ProcessingStage.LLM_STRUCTURING,
-                recoverable=not isinstance(exc, LLMAuthError),
-            )
-            fallback = get_fallback_provider()
-            try:
-                return fallback, await call(fallback)
-            except Exception as inner:  # pragma: no cover - deterministic provider is offline-safe
-                logger.exception("fallback_provider_failed", extra={"session_id": runtime.session_id})
-                runtime.last_ai_error = {"code": "FALLBACK_FAILED", "message": str(inner)[:300]}
-                return fallback, None
-        except Exception as exc:
-            logger.exception("llm_call_failed", extra={"session_id": runtime.session_id, "purpose": purpose})
-            runtime.last_ai_error = {"code": "LLM_UNEXPECTED", "message": str(exc)[:300]}
-            await self._emit_error(
-                runtime,
-                "LLM_UNEXPECTED",
-                f"{provider.name} failed before a usable note could be written. A draft was filled from the transcript instead.",
-                ProcessingStage.LLM_STRUCTURING,
-            )
-            fallback = get_fallback_provider()
-            try:
-                return fallback, await call(fallback)
-            except Exception as inner:  # pragma: no cover
-                logger.exception("fallback_provider_failed", extra={"session_id": runtime.session_id})
-                runtime.last_ai_error = {"code": "FALLBACK_FAILED", "message": str(inner)[:300]}
-                return fallback, None
+            return fallback, await call(fallback)
+        except Exception as inner:  # pragma: no cover - deterministic provider is offline-safe
+            logger.exception("fallback_provider_failed", extra={"session_id": runtime.session_id})
+            runtime.last_ai_error = {"code": "FALLBACK_FAILED", "message": str(inner)[:300]}
+            return fallback, None
+
+    @staticmethod
+    def _mark_fallback(runtime: SessionRuntime, outcome, note_provider: LLMProvider) -> None:
+        """A rule-based note written because the LLM failed is never shown unlabelled."""
+        if not note_provider.is_mock or runtime.llm.is_mock:
+            outcome.content.fallback = None
+            return
+        reason = runtime.fallback_reason or {
+            "code": LLM_SERVICE_UNAVAILABLE,
+            "label": fallback_label(runtime.llm),
+            "message": "The LLM was unavailable for this update.",
+        }
+        outcome.content.fallback = NoteFallback(**reason, at=datetime.now(timezone.utc).isoformat())
+        outcome.review_flags.insert(
+            0,
+            {
+                "section": "note",
+                "label": reason["label"],
+                "reason": f"{reason['message']} This draft was produced by the rule-based extractor, not the LLM.",
+                "severity": "ERROR",
+            },
+        )
+        if outcome.status is not NoteStatus.APPROVED and outcome.status is not NoteStatus.EXPORTED:
+            outcome.status = NoteStatus.REVIEW_REQUIRED
 
     async def _persist_entities(
         self, runtime: SessionRuntime, entities: list, *, provider_model: str

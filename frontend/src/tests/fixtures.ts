@@ -129,6 +129,7 @@ export const note: ClinicalNote = {
   content: {
     chief_complaint: section('Chest discomfort since yesterday evening.'),
     history_of_present_illness: section('Patient reports intermittent pressure-like chest discomfort.'),
+    review_of_systems: section('Not mentioned', []),
     relevant_medical_history: section('Not mentioned', []),
     social_history: section('Not mentioned', []),
     family_history: section('Not mentioned', []),

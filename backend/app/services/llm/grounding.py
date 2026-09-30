@@ -12,6 +12,8 @@ import re
 from typing import Any, Iterable
 
 from app.models.enums import EntityType
+from app.services.asr.code_switch import CLINICAL_COLLOQUIALISMS
+from app.services.asr.medical_lexicon import PHARMACEUTICAL_DIRECTORY
 from app.services.llm.schemas import ExtractedEntity, GeneratedNote, NoteUpdate
 from app.services.nlp.terminology import _SYNONYMS
 
@@ -29,6 +31,36 @@ _BRAND_GENERIC: dict[str, str] = {
     "augmentin": "amoxicillin",
     "azithral": "azithromycin",
     "combiflam": "ibuprofen",
+    "pan 40": "pantoprazole",
+    "meftal": "mefenamic acid",
+    "sinarest": "paracetamol",
+    "cheston cold": "cetirizine",
+    "montair": "montelukast",
+    "allegra": "fexofenadine",
+    "zerodol": "aceclofenac",
+    "ecosprin": "aspirin",
+}
+
+# Every drug name the lexicon knows, used to catch prescriptions nobody spoke.
+_KNOWN_DRUGS: frozenset[str] = frozenset(
+    {name.lower() for names in PHARMACEUTICAL_DIRECTORY.values() for name in names}
+    | set(_BRAND_GENERIC)
+    | set(_BRAND_GENERIC.values())
+    | {"paracetamol", "ibuprofen", "aspirin", "insulin", "prednisolone", "antibiotic", "antibiotics"}
+)
+_KNOWN_DRUG_RE = re.compile(
+    r"\b(" + "|".join(re.escape(name) for name in sorted(_KNOWN_DRUGS, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+# Hedging and framing words that carry no diagnostic content of their own.
+_ASSESSMENT_FILLER = {
+    "likely", "possible", "possibly", "probable", "probably", "suspected", "suspect",
+    "differential", "differentials", "include", "includes", "including", "diagnosis",
+    "diagnoses", "impression", "consistent", "working", "rule", "versus", "query",
+    "clinical", "assessment", "patient", "doctor", "states", "stated", "mentioned",
+    "considered", "considering", "could", "would", "with", "from", "that", "this",
+    "acute", "chronic", "mild", "moderate", "severe",
 }
 
 # Spoken Indian terms that terminology.py does not always list as full phrases.
@@ -90,20 +122,33 @@ _DIAGNOSIS_SYMPTOM_SUPPORT: dict[str, tuple[str, ...]] = {
 _INVENTED_DIAGNOSIS_MARKERS = tuple(_DIAGNOSIS_SYMPTOM_SUPPORT.keys())
 
 
+# "chakkar" -> ("dizziness", "vertigo"): every alternative counts as a translation.
+_COLLOQUIAL_OPTIONS: dict[str, tuple[str, ...]] = {
+    phrase: tuple(option.strip().lower() for option in english.split("/") if option.strip())
+    for phrase, english in CLINICAL_COLLOQUIALISMS.items()
+}
+
+
 def _synonym_pairs() -> dict[str, str]:
     pairs = dict(_SYNONYMS)
     pairs.update(_BRAND_GENERIC)
     pairs.update(_VERNACULAR_EXTRA)
+    for phrase, options in _COLLOQUIAL_OPTIONS.items():
+        pairs.setdefault(phrase, options[0])
     return pairs
+
+
+_SYNONYM_PAIRS = _synonym_pairs()
 
 
 def expand_clinical_text(text: str) -> str:
     """Lowercased text plus English/vernacular/brand expansions."""
     raw = (text or "").lower()
     extras: list[str] = []
-    for phrase, english in _synonym_pairs().items():
+    for phrase, english in _SYNONYM_PAIRS.items():
         if phrase in raw:
             extras.append(english)
+            extras.extend(_COLLOQUIAL_OPTIONS.get(phrase, ()))
         if english in raw:
             extras.append(phrase)
     return f"{raw} {' '.join(extras)}".strip()
@@ -125,7 +170,7 @@ def is_grounded(value: str, cited_text: str) -> bool:
         return False
     if value_l in haystack:
         return True
-    for phrase, english in _synonym_pairs().items():
+    for phrase, english in _SYNONYM_PAIRS.items():
         if value_l in (phrase, english) and (phrase in haystack or english in haystack):
             return True
         if phrase in value_l and (phrase in haystack or english in haystack):
@@ -197,56 +242,123 @@ def _filter_section_text(text: str, transcript: str, *, medication_section: bool
     return ". ".join(kept) + ("." if text.rstrip().endswith(".") else "")
 
 
+def unspoken_drugs(text: str, transcript: str) -> list[str]:
+    """Drug names in ``text`` that the transcript never mentions (brand/generic aware)."""
+    haystack = expand_clinical_text(transcript)
+    missing: list[str] = []
+    for match in _KNOWN_DRUG_RE.finditer(text or ""):
+        name = match.group(1).lower()
+        if name in haystack or name in missing:
+            continue
+        missing.append(name)
+    return missing
+
+
+def doctor_transcript(segments: Iterable[dict[str, Any]]) -> str:
+    """What the doctor said. Without any doctor-attributed turn, the whole transcript."""
+    items = list(segments)
+    doctor = [s for s in items if str(s.get("role", "")).upper() == "DOCTOR"]
+    return transcript_blob(doctor if doctor else items)
+
+
+def _assessment_clause_supported(clause: str, doctor_text: str, transcript: str) -> bool:
+    """The doctor voiced it, and the conversation contains symptoms that fit it."""
+    lowered = clause.strip().lower()
+    if not lowered:
+        return False
+    whole = expand_clinical_text(transcript)
+    for marker, required_support in _DIAGNOSIS_SYMPTOM_SUPPORT.items():
+        if marker in lowered and not any(req in whole for req in required_support):
+            return False
+    haystack = expand_clinical_text(doctor_text)
+    if unspoken_drugs(clause, doctor_text):
+        return False
+    tokens = [
+        tok for tok in _TOKEN_RE.findall(lowered) if len(tok) >= 4 and tok not in _ASSESSMENT_FILLER
+    ]
+    if not tokens:
+        return False
+    matched = sum(1 for tok in tokens if tok in haystack)
+    return matched / len(tokens) >= 0.5
+
+
+def _doctor_clause_supported(clause: str, doctor_text: str) -> bool:
+    if unspoken_drugs(clause, doctor_text):
+        return False
+    return _clause_supported(clause, doctor_text)
+
+
+def _filter_clauses(text: str, keep) -> str:
+    if not (text or "").strip():
+        return ""
+    clauses = [part.strip(" -•\t") for part in _CLAUSE_SPLIT.split(text) if part.strip(" -•\t")]
+    kept = [clause for clause in clauses if keep(clause)]
+    if not kept:
+        return ""
+    if len(kept) == len(clauses):
+        return text
+    if "\n" in text:
+        return "\n".join(kept)
+    return ". ".join(kept) + ("." if text.rstrip().endswith(".") else "")
+
+
+def _clear(section) -> None:
+    section.text = ""
+    section.source_segment_ids = []
+    section.confidence = 0.0
+
+
 def purge_note_hallucinations(
     update: NoteUpdate,
     segments: list[dict[str, Any]],
     entities: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Strip invented medications, diagnoses, and unsupported plan/assessment text."""
+    """Strip invented medications, diagnoses, and unsupported plan/assessment text.
+
+    Assessment, plan and follow-up are the doctor's decisions, so they are
+    checked against the doctor's own words; a clause the doctor never voiced is
+    removed and an emptied section is shown as "Not mentioned".
+    """
     transcript = transcript_blob(segments)
     entity_blob = " ".join(
         str(e.get("value", "")) for e in (entities or []) if e.get("value")
     )
     support = f"{transcript} {entity_blob}"
+    doctor_text = doctor_transcript(segments)
 
     note: GeneratedNote = update.note
-    med_sections = ("current_medication", "plan", "treatment_history")
-    strict_sections = ("assessment", "allergies", "past_medical_history", "relevant_medical_history")
 
-    for key in med_sections:
+    for key in ("current_medication", "treatment_history"):
         section = getattr(note, key, None)
         if section is None or not section.text:
             continue
-        section.text = _filter_section_text(section.text, support, medication_section=True)
+        section.text = _filter_clauses(
+            section.text,
+            lambda clause: not unspoken_drugs(clause, transcript) and _clause_supported(clause, support),
+        )
         if not section.text.strip():
-            section.source_segment_ids = []
-            section.confidence = 0.0
+            _clear(section)
 
-    for key in strict_sections:
+    decision_rules = {
+        "assessment": lambda clause: _assessment_clause_supported(clause, doctor_text, transcript),
+        "plan": lambda clause: _doctor_clause_supported(clause, doctor_text),
+        "follow_up": lambda clause: _doctor_clause_supported(clause, doctor_text),
+    }
+    for key, keep in decision_rules.items():
         section = getattr(note, key, None)
         if section is None or not section.text:
             continue
-        if key == "assessment":
-            # Clinical synthesis: verify not diagnosing an unrelated chronic condition
-            lowered = section.text.lower()
-            haystack = expand_clinical_text(support)
-            unsupported = False
-            for marker, required_support in _DIAGNOSIS_SYMPTOM_SUPPORT.items():
-                if marker in lowered and not any(req in haystack for req in required_support):
-                    unsupported = True
-                    break
-            if unsupported:
-                section.text = ""
-                section.source_segment_ids = []
-                section.confidence = 0.0
-            continue
+        section.text = _filter_clauses(section.text, keep)
+        if not section.text.strip():
+            _clear(section)
 
+    for key in ("allergies", "relevant_medical_history"):
+        section = getattr(note, key, None)
+        if section is None or not section.text:
+            continue
         if not _clause_supported(section.text, support):
-            section.text = ""
-            section.source_segment_ids = []
-            section.confidence = 0.0
-        else:
-            section.text = _filter_section_text(section.text, support, medication_section=False)
-            if not section.text.strip():
-                section.source_segment_ids = []
-                section.confidence = 0.0
+            _clear(section)
+            continue
+        section.text = _filter_section_text(section.text, support, medication_section=False)
+        if not section.text.strip():
+            _clear(section)

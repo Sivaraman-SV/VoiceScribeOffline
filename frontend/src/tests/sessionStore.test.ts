@@ -49,6 +49,15 @@ describe('session store', () => {
     expect(state.lastNoteChange?.sections).toEqual(['chief_complaint'])
   })
 
+  it('holds streamed sections only until the verified note arrives', () => {
+    const { applyEvent } = useSessionStore.getState()
+    applyEvent(event('NOTE_STREAM', { sections: { chief_complaint: 'Fever' }, verified: false }, 0))
+    expect(useSessionStore.getState().streamingSections).toEqual({ chief_complaint: 'Fever' })
+
+    applyEvent(event('NOTE_UPDATE', { note, changed_sections: [], change_summary: '' }, 2))
+    expect(useSessionStore.getState().streamingSections).toBeNull()
+  })
+
   it('keeps the session usable when the AI layer reports an error', () => {
     const { applyEvent } = useSessionStore.getState()
     applyEvent(event('TRANSCRIPT_UPDATE', { segments }))

@@ -46,6 +46,7 @@ export type NoteStatus = 'PROCESSING' | 'DRAFT' | 'REVIEW_REQUIRED' | 'APPROVED'
 export type NoteSectionKey =
   | 'chief_complaint'
   | 'history_of_present_illness'
+  | 'review_of_systems'
   | 'relevant_medical_history'
   | 'social_history'
   | 'family_history'
@@ -145,6 +146,15 @@ export interface ClinicalNoteContent
   generated_at: string | null
   model: string | null
   version: number
+  /** Present when the LLM failed and the rule-based extractor wrote this draft. */
+  fallback?: NoteFallback | null
+}
+
+export interface NoteFallback {
+  code: string
+  label: string
+  message: string
+  at: string | null
 }
 
 export interface ReviewFlag {
@@ -264,7 +274,7 @@ export interface AiStatus {
   mock: boolean
   degraded: boolean
   configured: boolean
-  last_error?: { code: string; message: string; purpose?: string } | null
+  last_error?: { code: string; message: string; purpose?: string; cause?: string } | null
 }
 
 export interface SystemStatus {
@@ -316,6 +326,7 @@ export type SocketEventType =
   | 'TRANSCRIPT_UPDATE'
   | 'ENTITY_UPDATE'
   | 'NOTE_UPDATE'
+  | 'NOTE_STREAM'
   | 'EVIDENCE_UPDATE'
   | 'PROCESSING_STATUS'
   | 'PROCESSING_ERROR'

@@ -6,10 +6,12 @@ from app.services.llm.base import (
     LLMCallStats,
     LLMError,
     LLMInvalidOutput,
+    LLMModelNotFound,
     LLMNotConfigured,
     LLMProvider,
     LLMRateLimited,
     LLMSafetyBlocked,
+    LLMServiceUnavailable,
     LLMTimeout,
     LLMUnavailable,
     NoteResponse,
@@ -33,6 +35,11 @@ def build_llm_provider(model_name: str | None = None) -> LLMProvider:
     target_model = model_name or settings.local_llm_model
     target_lower = target_model.lower()
 
+    # Mock mode and sessions pinned to the rule engine must never reach a real model:
+    # the local provider's fallback chain would otherwise load one on this machine.
+    if settings.effective_ai_mode is AIMode.MOCK or target_model == DeterministicLLMProvider.model:
+        return DeterministicLLMProvider()
+
     if "gemini" in target_lower and settings.gemini_configured:
         from app.services.llm.gemini_provider import GeminiProvider
 
@@ -45,6 +52,8 @@ def build_llm_provider(model_name: str | None = None) -> LLMProvider:
     ):
         from app.services.llm.local_provider import LocalLLMProvider
 
+        if "gemini" in target_lower:
+            target_model = settings.local_llm_model
         return LocalLLMProvider(model=target_model)
 
     return DeterministicLLMProvider()
@@ -73,7 +82,9 @@ __all__ = [
     "LLMCallStats",
     "LLMError",
     "LLMInvalidOutput",
+    "LLMModelNotFound",
     "LLMNotConfigured",
+    "LLMServiceUnavailable",
     "LLMProvider",
     "LLMRateLimited",
     "LLMSafetyBlocked",

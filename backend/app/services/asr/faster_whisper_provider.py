@@ -62,16 +62,27 @@ def load_whisper_model(model_name: str, device: str, compute_type: str) -> tuple
         for key in ((model_name, device, compute_type), (model_name, "cpu", "int8")):
             if key in _MODELS:
                 return _MODELS[key], key[1], key[2]
-        logger.info("loading_asr_model", extra={"model": model_name, "device": device, "compute": compute_type})
+        # num_workers > 1 lets concurrent sessions decode in parallel on the
+        # same loaded weights instead of queueing behind one another.
+        workers = max(1, settings.asr_num_workers)
+        threads = max(1, settings.asr_cpu_threads)
+        logger.info(
+            "loading_asr_model",
+            extra={"model": model_name, "device": device, "compute": compute_type, "workers": workers},
+        )
         try:
-            model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            model = WhisperModel(
+                model_name, device=device, compute_type=compute_type, num_workers=workers, cpu_threads=threads
+            )
         except Exception as exc:
             logger.warning(
                 "asr_gpu_or_device_failed_using_cpu",
                 extra={"requested_device": device, "error": str(exc)},
             )
             device, compute_type = "cpu", "int8"
-            model = WhisperModel(model_name, device=device, compute_type=compute_type)
+            model = WhisperModel(
+                model_name, device=device, compute_type=compute_type, num_workers=workers, cpu_threads=threads
+            )
         _MODELS[(model_name, device, compute_type)] = model
         return model, device, compute_type
 

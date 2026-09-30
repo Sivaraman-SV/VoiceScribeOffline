@@ -39,8 +39,123 @@ _LANGUAGE_ALIASES: dict[str, str] = {
 _STYLE_PROMPTS: dict[str, str] = {
     "ta": "doctor, எனக்கு 2 days-ஆ severe headache and chest pain இருக்கு. Paracetamol Dolo 650 tablet போட்டேன். BP check பண்ணனும்.",
     "hi": "doctor, मुझे 2 days से fever and chest pain है। मैंने Paracetamol Dolo 650 tablet ली थी। BP check करना है।",
+    "te": "doctor garu, నాకు 2 days నుండి fever ఉంది. Paracetamol Dolo 650 tablet వేసుకున్నాను. BP check చేయాలి.",
     "en": "Doctor and patient clinical discussion regarding headache, fever, cough, body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, vitals, blood pressure, Volini gel, Moov spray, Omnigel, Dolo 650, Paracetamol, Combiflam, Pantocid, Pan-D, Azithral, Augmentin, Cetirizine, Montair-LC, Allegra, Digene, Electral ORS, Metformin, Telma.",
 }
+
+
+# Romanised vernacular and Indian-English idioms -> standard clinical English.
+# Used to ground the LLM (only entries that occur in the transcript are sent)
+# and by the anti-hallucination filter to accept translated claims. Keys are
+# lowercase and matched as whole phrases.
+CLINICAL_COLLOQUIALISMS: dict[str, str] = {
+    # Hindi / Hinglish
+    "sir dard": "headache",
+    "sar dard": "headache",
+    "sar mein dard": "headache",
+    "sir mein dard": "headache",
+    "chakkar": "dizziness / vertigo",
+    "chakkar aa raha": "dizziness / vertigo",
+    "pet dard": "abdominal pain",
+    "pet mein dard": "abdominal pain",
+    "bukhar": "fever",
+    "khansi": "cough",
+    "zukam": "coryza / common cold",
+    "ulti": "vomiting",
+    "dast": "diarrhoea",
+    "kamzori": "generalised weakness",
+    "saans phoolna": "breathlessness",
+    "saans lene mein takleef": "breathlessness",
+    "seene mein jalan": "heartburn",
+    "chhati mein dard": "chest pain",
+    "jor ka dard": "joint pain",
+    "kamar dard": "low back pain",
+    "neend nahi": "insomnia",
+    "bhook nahi": "loss of appetite",
+    "peshab mein jalan": "dysuria",
+    # Tamil / Tanglish
+    "thalai vali": "headache",
+    "thalaivali": "headache",
+    "thala vali": "headache",
+    "thudikudhu": "throbbing pain",
+    "kaichal": "fever",
+    "kaachal": "fever",
+    "juram": "fever",
+    "irumal": "cough",
+    "sali": "coryza / common cold",
+    "nenju eri": "heartburn / dyspepsia",
+    "nenju erichal": "heartburn / dyspepsia",
+    "nenju vali": "chest pain",
+    "vayiru vali": "abdominal pain",
+    "vayiru eri": "epigastric burning",
+    "vaanthi": "vomiting",
+    "vaandhi": "vomiting",
+    "mayakkam": "dizziness / giddiness",
+    "thala suthuthu": "giddiness / vertigo",
+    "moochu vaangudhu": "breathlessness",
+    "udambu vali": "body ache / myalgia",
+    "kaal vali": "leg pain",
+    "mudhugu vali": "back pain",
+    "thookam varala": "insomnia",
+    "pasi illa": "loss of appetite",
+    # Telugu / Telugu-English
+    "thala noppi": "headache",
+    "tala noppi": "headache",
+    "kadupu noppi": "abdominal pain",
+    "kadupulo noppi": "abdominal pain",
+    "jwaram": "fever",
+    "jvaram": "fever",
+    "daggu": "cough",
+    "jalubu": "coryza / common cold",
+    "vantulu": "vomiting",
+    "vanthulu": "vomiting",
+    "kallu tiruguthunnayi": "giddiness / vertigo",
+    "kallu tirugutunnayi": "giddiness / vertigo",
+    "tala tirugudu": "giddiness / vertigo",
+    "gunde noppi": "chest pain",
+    "gunde manta": "heartburn",
+    "ayasam": "breathlessness",
+    "nadumu noppi": "low back pain",
+    "ollu noppulu": "body ache / myalgia",
+    "neerasam": "fatigue / weakness",
+    "motions": "diarrhoea",
+    # Indian-English idioms
+    "gas trouble": "dyspepsia / gastritis",
+    "gastric problem": "dyspepsia / gastritis",
+    "acidity": "dyspepsia / acid reflux",
+    "loose motions": "acute diarrhoea",
+    "loose motion": "acute diarrhoea",
+    "motion problem": "diarrhoea",
+    "sugar problem": "diabetes mellitus",
+    "sugar patient": "diabetes mellitus",
+    "have sugar": "diabetes mellitus",
+    "bp problem": "hypertension",
+    "bp patient": "hypertension",
+    "high bp": "hypertension",
+    "low bp": "hypotension",
+    "pressure problem": "hypertension",
+    "giddiness": "dizziness",
+    "body pain": "generalised body ache / myalgia",
+    "cold tablet": "unspecified over-the-counter cold tablet",
+    "fits": "seizures",
+    "piles": "haemorrhoids",
+    "jaundice": "jaundice",
+    "heart problem": "cardiac history (unspecified)",
+}
+
+_COLLOQUIAL_RE = re.compile(
+    r"\b(" + "|".join(re.escape(term) for term in sorted(CLINICAL_COLLOQUIALISMS, key=len, reverse=True)) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def colloquial_glossary(text: str) -> dict[str, str]:
+    """Colloquial terms that occur in ``text`` mapped to their clinical English."""
+    found: dict[str, str] = {}
+    for match in _COLLOQUIAL_RE.finditer(text or ""):
+        term = match.group(1).lower()
+        found.setdefault(term, CLINICAL_COLLOQUIALISMS[term])
+    return found
 
 
 def parse_languages(value: str | None) -> tuple[str, ...]:

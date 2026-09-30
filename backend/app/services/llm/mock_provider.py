@@ -68,6 +68,7 @@ class DeterministicLLMProvider(LLMProvider):
         segments: list[dict[str, Any]],
         rule_based_candidates: list[dict[str, Any]] | None = None,
         existing_entities: list[dict[str, Any]] | None = None,
+        on_partial_note: Any = None,
     ) -> ExtractionResponse:
         assembled = [_to_assembled(segment) for segment in segments]
         candidates = self.nlp.extract(assembled)
@@ -376,18 +377,8 @@ class DeterministicLLMProvider(LLMProvider):
                 source_segment_ids=refs,
             )
 
-        # Formulate clinical impression based on presenting symptoms
-        present_symptoms = self._present(grouped.get(EntityType.SYMPTOM.value, []))
-        if present_symptoms:
-            sym_names = [self._value(s) for s in present_symptoms]
-            refs = list(self._refs(present_symptoms)) or ([segments[0].ref] if segments else [])
-            return GeneratedSection(
-                text=f"Clinical impression: Acute presentation consistent with {', '.join(sym_names[:3])}. Suspected acute febrile/viral illness under active clinical evaluation.",
-                confidence=0.80,
-                source_segment_ids=refs,
-            )
-
-        return GeneratedSection(text="", confidence=0.0, source_segment_ids=[])
+        # Nothing stated by the doctor: no impression is written.
+        return GeneratedSection(text=NOT_MENTIONED, confidence=0.0, source_segment_ids=[])
 
     def _plan(
         self, grouped: dict[str, list[dict[str, Any]]], segments: list[AssembledSegment]
@@ -432,15 +423,7 @@ class DeterministicLLMProvider(LLMProvider):
             parts.append("Diagnostic orders: " + ", ".join(self._value(e) for e in doc_invs))
             refs += self._refs(doc_invs)
         if not parts:
-            present_symptoms = self._present(grouped.get(EntityType.SYMPTOM.value, []))
-            if present_symptoms:
-                refs = list(self._refs(present_symptoms)) or ([segments[0].ref] if segments else [])
-                return GeneratedSection(
-                    text="Supportive care: Adequate rest and oral hydration. Symptomatic monitoring of fever and respiratory symptoms. Immediate medical review if breathing difficulty worsens.",
-                    confidence=0.75,
-                    source_segment_ids=refs,
-                )
-            return GeneratedSection(text="", confidence=0.0, source_segment_ids=[])
+            return GeneratedSection(text=NOT_MENTIONED, confidence=0.0, source_segment_ids=[])
         if not refs and segments:
             refs = [segments[0].ref]
         return GeneratedSection(

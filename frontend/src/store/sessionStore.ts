@@ -12,6 +12,7 @@ import type {
   ClinicalEntity,
   ClinicalNote,
   EvidenceLink,
+  NoteSectionKey,
   ProcessingStage,
   Session,
   SocketEvent,
@@ -49,6 +50,8 @@ interface SessionState {
   audioActive: boolean
   timelineSeconds: number
   lastNoteChange: { sections: string[]; summary: string; at: string } | null
+  /** Unverified section text streamed while the LLM is generating; cleared by NOTE_UPDATE. */
+  streamingSections: Partial<Record<NoteSectionKey, string>> | null
   errors: PipelineError[]
   selectedSegmentRef: string | null
   evidenceFocus: EvidenceFocus | null
@@ -82,6 +85,7 @@ const initial = {
   audioActive: false,
   timelineSeconds: 0,
   lastNoteChange: null,
+  streamingSections: null as Partial<Record<NoteSectionKey, string>> | null,
   errors: [] as PipelineError[],
   selectedSegmentRef: null,
   evidenceFocus: null,
@@ -198,12 +202,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         set({
           note: payload.note ?? get().note,
           ai: payload.ai ?? get().ai,
+          streamingSections: null,
           lastNoteChange: {
             sections: payload.changed_sections ?? [],
             summary: payload.change_summary ?? '',
             at: event.emitted_at,
           },
         })
+        break
+      }
+      case 'NOTE_STREAM': {
+        const payload = event.payload as { sections: Partial<Record<NoteSectionKey, string>> }
+        set({ streamingSections: payload.sections ?? null })
         break
       }
       case 'EVIDENCE_UPDATE': {
@@ -237,6 +247,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           completed: true,
           audioActive: false,
           stage: 'IDLE',
+          streamingSections: null,
           session: session
             ? { ...session, status: payload.status, duration_seconds: payload.duration_seconds }
             : session,
