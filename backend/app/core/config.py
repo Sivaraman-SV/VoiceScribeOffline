@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # --- AI ----------------------------------------------------------------
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3.7-flash"
+    gemini_model: str = "gemini-2.5-flash"
     ai_mode: AIMode = AIMode.GEMINI
     gemini_verify_ssl: bool = True
     gemini_http_proxy: str | None = None
@@ -93,9 +93,8 @@ class Settings(BaseSettings):
     demo_segment_interval_seconds: float = 2.5
 
     # --- pipeline providers ------------------------------------------------
-    # RTX 4050 (6 GB): Whisper on CPU so Qwen 7B can use the GPU.
-    asr_provider: ASRProviderName = ASRProviderName.FASTER_WHISPER
-    diarization_provider: DiarizationProviderName = DiarizationProviderName.LOCAL
+    asr_provider: ASRProviderName = ASRProviderName.GEMINI
+    diarization_provider: DiarizationProviderName = DiarizationProviderName.GEMINI
     faster_whisper_model: str = "large-v3-turbo"
     asr_device: str = "cpu"
     asr_compute_type: str = "int8"

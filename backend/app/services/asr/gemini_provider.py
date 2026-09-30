@@ -51,18 +51,17 @@ _MIME_ALIASES = {
     "audio/mp4": "audio/aac",
 }
 
-_PROMPT = """You are a clinical speech recognition engine.
+_PROMPT = """You are a medical speech recognition and transcription engine for clinical encounters.
 
-Transcribe the audio VERBATIM. Rules:
-- Write only words that are actually spoken in this audio.
-- Accurately recognize and transcribe any spoken language or code-switching (e.g. English, Tamil, Hindi, Tanglish, Spanish, French, etc.) in its authentic spoken words.
-- Do NOT invent, complete, summarise or clinically "improve" anything.
+Transcribe the audio VERBATIM with high clinical accuracy:
+- Accurately recognize Indian English speech, clinical terminology, symptoms, anatomy, investigations, dosage, and Indian pharmaceutical brand names (e.g. Volini, Moov, Omnigel, Relispray, Dolo 650, Calpol, Paracetamol, Combiflam, Meftal-Spas, Pantocid, Pan-D, Omez, Rantac, Digene, Gelusil, Augmentin, Clavam, Azithral, Ceftum, Monocef, Taxim-O, Cifran, Oflox-OZ, Metrogyl, Allegra, Cetirizine, Montair-LC, Sinarest, Cheston Cold, Ascoril, Benadryl, Electral ORS, Telma, Amlong, Cilacar, Metformin, Glycomet, Atorva, Shelcal, Becosules, Neurobion, Liv-52, Thyronorm, Betadine).
+- Write what was actually spoken in clean clinical English.
+- Do NOT invent, omit, summarise or alter words.
 - Separate the audio into turns, one per continuous stretch of a single voice.
-- Label voices as speaker_0, speaker_1, ... in the order they first speak. Use
-  the same label every time the same voice returns.
+- Label voices as speaker_0, speaker_1, ... in the order they first speak. Use the same label every time the same voice returns.
 - start/end are seconds from the beginning of THIS audio clip.
 - confidence is your transcription confidence for the turn, from 0.0 to 1.0.
-- Keep filler words and false starts; they matter for clinical review.
+- Keep filler words and clinical descriptions verbatim.
 - If the audio contains no intelligible speech, return {"turns": []}.
 
 Return JSON only, matching this shape:
