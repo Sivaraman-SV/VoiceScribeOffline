@@ -40,3 +40,14 @@ def test_normalize_segments_list():
     assert cleaned[0]["text"] == "Doctor gave Telma 20 and Pantocid"
     assert "BP" in str(cleaned[1]["text"])
     assert "blood sugar" in str(cleaned[1]["text"])
+
+
+def test_normalize_volini_and_topicals():
+    cases = [
+        ("apply volini gel for back pain", "apply Volini for back pain"),
+        ("use fall in he spray twice a day", "use Volini BD (twice daily)"),
+        ("apply moov spray on knee", "apply Moov on knee"),
+        ("omni gel for joint pain", "Omnigel for joint pain"),
+    ]
+    for raw, expected in cases:
+        assert normalize_medical_transcript(raw) == expected

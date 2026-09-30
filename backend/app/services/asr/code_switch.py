@@ -39,7 +39,7 @@ _LANGUAGE_ALIASES: dict[str, str] = {
 _STYLE_PROMPTS: dict[str, str] = {
     "ta": "doctor, எனக்கு 2 days-ஆ severe headache and chest pain இருக்கு. Paracetamol Dolo 650 tablet போட்டேன். BP check பண்ணனும்.",
     "hi": "doctor, मुझे 2 days से fever and chest pain है। मैंने Paracetamol Dolo 650 tablet ली थी। BP check करना है।",
-    "en": "Doctor and patient clinical discussion regarding headache, fever, cough, body pain, chest discomfort, nausea, vomiting, medications, Dolo 650, Paracetamol, BP, and vitals.",
+    "en": "Doctor and patient clinical discussion regarding headache, fever, cough, body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, vitals, blood pressure, Volini gel, Moov spray, Omnigel, Dolo 650, Paracetamol, Combiflam, Pantocid, Pan-D, Azithral, Augmentin, Cetirizine, Montair-LC, Allegra, Digene, Electral ORS, Metformin, Telma.",
 }
 
 

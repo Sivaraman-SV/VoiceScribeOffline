@@ -69,10 +69,10 @@ def _build_local_extraction_prompt(
     return f"""Extract all clinical entities from this outpatient dialogue into valid JSON.
 
 ENTITY TYPES:
-- SYMPTOM: Spoken symptoms or complaints (e.g., "headache", "fever", "body pain", "cough").
-- MEDICATION: Named drugs, doses, or formulations (e.g., "Dolo 650", "Paracetamol").
+- SYMPTOM: Spoken symptoms or complaints (e.g., "headache", "fever", "body pain", "cough", "backache").
+- MEDICATION: Named drugs, formulations, ointments, or sprays (e.g., "Volini", "Dolo 650", "Paracetamol", "Combiflam", "Moov").
 - FINDING: Vital signs or clinical observations (e.g., "blood pressure", "fever").
-- DIAGNOSIS_MENTIONED: Conditions named by doctor or patient (e.g., "viral fever", "migraine").
+- DIAGNOSIS_MENTIONED: Conditions named by doctor or patient (e.g., "viral fever", "migraine", "sprain").
 - ALLERGY: Known allergic reactions mentioned.
 - MEDICAL_HISTORY: Past medical or chronic conditions (e.g., "diabetes", "hypertension").
 
@@ -87,7 +87,8 @@ TRANSCRIPT:
 {hints_text}
 Output JSON format:
 {{"entities": [
-  {{"entity_type": "SYMPTOM", "value": "headache", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"], "detail": "2 days"}},
+  {{"entity_type": "SYMPTOM", "value": "backache", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"], "detail": "2 days"}},
+  {{"entity_type": "MEDICATION", "value": "Volini", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "applied spray"}},
   {{"entity_type": "MEDICATION", "value": "Dolo 650", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "taken twice"}}
 ], "unsupported_content": []}}"""
 
@@ -107,15 +108,15 @@ def _build_local_note_prompt(
     return f"""You are a professional medical scribe. Write a comprehensive, high-quality SOAP clinical note in standard clinical English based on the consultation transcript below.
 
 SECTION REQUIREMENTS:
-- chief_complaint: Primary symptoms and duration (e.g., "Headache and fever for 2 days").
-- history_of_present_illness: Detailed narrative of the illness including symptom onset, progression, severity, aggravating/relieving factors, and any medications already taken by the patient. Document denied symptoms explicitly (e.g., "Denies cough, chest pain, or shortness of breath").
+- chief_complaint: Primary symptoms and duration (e.g., "Headache and fever for 2 days" or "Low back pain for 3 days").
+- history_of_present_illness: Detailed narrative of the illness including symptom onset, progression, severity, aggravating/relieving factors, and any medications/topicals already used by the patient (e.g., "Patient reports lower back pain and stiffness. Applied Volini spray with temporary relief. Denies radiation of pain or weakness"). Document denied symptoms explicitly.
 - past_medical_history: Chronic conditions, previous surgeries, or medical history explicitly discussed. If not discussed, return "".
-- physical_examination: Vitals and examination findings mentioned (e.g., BP, pulse, temperature, general appearance). If not discussed, return "".
-- current_medication: Medications taken by the patient prior to or regularly before this visit (e.g. "Dolo 650 taken at home"). If not discussed, return "".
+- physical_examination: Vitals and examination findings mentioned (e.g., BP, pulse, temperature, spinal tenderness, range of motion). If not discussed, return "".
+- current_medication: Medications or remedies used by the patient prior to or regularly before this visit (e.g. "Dolo 650, Volini spray applied at home"). If not discussed, return "".
 - allergies: Known drug/food allergies mentioned, or "" if not discussed.
-- assessment: Working diagnosis or clinical impression based on symptoms discussed (e.g., "Acute febrile illness with headache / viral prodrome").
-- plan: Doctor's treatment plan, prescriptions, advice (diet, hydration, rest), and medications ordered during the visit. Never invent medications not discussed.
-- follow_up: Follow-up recommendations and return precautions (e.g., "Review in 3 days if symptoms persist or earlier if fever worsens").
+- assessment: Working diagnosis or clinical impression based on symptoms discussed (e.g., "Acute lumbar muscle spasm / strain").
+- plan: Doctor's treatment plan, prescriptions, topicals/sprays, advice (rest, hot/cold fermentation, hydration), and medications ordered during the visit. Never invent medications not discussed.
+- follow_up: Follow-up recommendations and return precautions (e.g., "Review in 3 to 5 days if pain persists or immediately if red flag symptoms appear").
 
 TRANSCRIPT:
 {transcript}

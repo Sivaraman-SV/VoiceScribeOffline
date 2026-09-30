@@ -1,7 +1,7 @@
 """Medical Terminology & Phonetic Normalizer for Indian Clinical Dialogues.
 
 Corrects common acoustic and phonetic transcription errors produced by Whisper models
-when transcribing Indian English, Hinglish, Tanglish, and regional medical encounters.
+when transcribing Indian English and clinical medical encounters.
 """
 
 from __future__ import annotations
@@ -9,53 +9,17 @@ from __future__ import annotations
 import re
 from typing import Sequence
 
+from app.services.asr.medical_lexicon import PHONETIC_CORRECTIONS
+
 _ALREADY_EXPANDED = r"(?<!OD \()(?<!BD \()(?<!TDS \()(?<!SOS \()"
 
 # Regex replacement rules: (pattern, replacement)
-# Carefully bounded with \b to avoid replacing substrings inside longer words.
-# Do NOT map everyday English ("tell me") onto drug names — that invents medications.
-_PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = [
-    # --- Common Indian Pharmaceutical Brands (high-confidence mishears only) ---
-    (re.compile(r"\b(?:tell\s*my|tel\s*my)\s*(20|40|80)\b", re.IGNORECASE), r"Telma \1"),
-    (re.compile(r"\btelma\b", re.IGNORECASE), "Telma"),
-    (re.compile(r"\b(?:pan\s*[- ]?d|penn\s*[- ]?d)\b", re.IGNORECASE), "Pan-D"),
-    (re.compile(r"\b(?:panto\s*sid|pantocid)\b", re.IGNORECASE), "Pantocid"),
-    (re.compile(r"\b(?:pantodac|panto\s*dac)\b", re.IGNORECASE), "Pantodac"),
-    (re.compile(r"\b(?:paracet\s*model|paracet\s*mol|paracetmol|paracetamol)\b", re.IGNORECASE), "Paracetamol"),
-    (re.compile(r"\b(?:dolo\s*[- ]?650|dollo\s*[- ]?650|dolor\s*[- ]?650|dolo\s*six\s*fifty)\b", re.IGNORECASE), "Dolo 650"),
-    (re.compile(r"\b(?:crossin|crocin)\b", re.IGNORECASE), "Crocin"),
-    (re.compile(r"\b(?:glyco\s*met|glycomet)\b", re.IGNORECASE), "Glycomet"),
-    (re.compile(r"\b(?:met\s*formin|metformin)\b", re.IGNORECASE), "Metformin"),
-    (re.compile(r"\b(?:am\s*long|amlong)\b", re.IGNORECASE), "Amlong"),
-    (re.compile(r"\b(?:ogmentin|aug\s*mentin|augmentin)\b", re.IGNORECASE), "Augmentin"),
-    (re.compile(r"\b(?:azithral|azithromycin)\b", re.IGNORECASE), "Azithral"),
-    (re.compile(r"\b(?:calpol)\b", re.IGNORECASE), "Calpol"),
-    (re.compile(r"\b(?:combi\s*flam|combiflam)\b", re.IGNORECASE), "Combiflam"),
-    (re.compile(r"\b(?:sef\s*tum|ceftum)\b", re.IGNORECASE), "Ceftum"),
-    (re.compile(r"\b(?:claw\s*vam|clavam)\b", re.IGNORECASE), "Clavam"),
-    (re.compile(r"\b(?:eco\s*sprin|eco\s*spring|ecosprin)\b", re.IGNORECASE), "Ecosprin"),
-    (re.compile(r"\b(?:a\s*torva|atorva|atorvastatin)\b", re.IGNORECASE), "Atorva"),
-    (re.compile(r"\b(?:ro\s*suvas|rosuvas|rosuvastatin)\b", re.IGNORECASE), "Rosuvas"),
-    (re.compile(r"\b(?:montek\s*[- ]?lc|montair\s*[- ]?lc)\b", re.IGNORECASE), "Montair-LC"),
-    (re.compile(r"\b(?:vomi\s*kind|vomikind)\b", re.IGNORECASE), "Vomikind"),
-    (re.compile(r"\b(?:on\s*dem|ondem)\b", re.IGNORECASE), "Ondem"),
-    (re.compile(r"\b(?:a\s*legra|allegra)\b", re.IGNORECASE), "Allegra"),
-    (re.compile(r"\b(?:meftal\s*[- ]?spas)\b", re.IGNORECASE), "Meftal-Spas"),
-    (re.compile(r"\b(?:zifi|zi\s*fi)\b", re.IGNORECASE), "Zifi"),
-    (re.compile(r"\b(?:supradyn|supra\s*dyn)\b", re.IGNORECASE), "Supradyn"),
-    (re.compile(r"\b(?:shelcal|shel\s*cal)\b", re.IGNORECASE), "Shelcal"),
-    (re.compile(r"\b(?:becosules|beco\s*sules)\b", re.IGNORECASE), "Becosules"),
-
+_DOSAGE_AND_VITALS_RULES: list[tuple[re.Pattern[str], str]] = [
     # --- Dosages & Frequencies ---
-    # The lookbehinds keep these idempotent: the pipeline normalises text that a
-    # provider has already normalised, and "OD (once daily)" must not become
-    # "OD (OD (once daily))".
     (re.compile(r"\b(\d+)\s*(?:mili\s*gram|milli\s*gram|mili\s*grams|milli\s*grams)\b", re.IGNORECASE), r"\1 mg"),
     (re.compile(_ALREADY_EXPANDED + r"\b(?:once\s*a\s*day|once\s*daily|one\s*time\s*daily)\b", re.IGNORECASE), "OD (once daily)"),
     (re.compile(_ALREADY_EXPANDED + r"\b(?:twice\s*a\s*day|twice\s*daily|two\s*times\s*a\s*day)\b", re.IGNORECASE), "BD (twice daily)"),
     (re.compile(_ALREADY_EXPANDED + r"\b(?:thrice\s*a\s*day|thrice\s*daily|three\s*times\s*a\s*day)\b", re.IGNORECASE), "TDS (thrice daily)"),
-    # "if pain" is deliberately not here: "if pain persists, come back" is not
-    # an as-needed instruction.
     (re.compile(_ALREADY_EXPANDED + r"\b(?:when\s*needed|as\s*needed|jarurat\s*padne\s*par|zaroorat\s*padne\s*par)\b", re.IGNORECASE), "SOS (as needed)"),
 
     # --- Clinical Abbreviations & Vitals ---
@@ -64,30 +28,10 @@ _PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\b(?:sp\s*o2|spo2|oxygen\s*saturation)\b", re.IGNORECASE), "SpO2"),
     (re.compile(r"\b(?:ecg|e\s*\.?\s*c\s*\.?\s*g\.?)\b", re.IGNORECASE), "ECG"),
     (re.compile(r"\b(?:x\s*ray|x-ray)\b", re.IGNORECASE), "X-Ray"),
-
-    # --- English Clinical Acoustic & Phonetic Corrections ---
-    (re.compile(r"\b(?:head\s*day|head\s*date|head\s*eight|head\s*take|head\s*ache)\b", re.IGNORECASE), "headache"),
-    (re.compile(r"\b(?:stomach\s*day|stomach\s*date|stomach\s*eight|stomach\s*cake|stomach\s*ache)\b", re.IGNORECASE), "stomach ache"),
-    (re.compile(r"\b(?:back\s*day|back\s*date|back\s*eight|back\s*cake|back\s*ache)\b", re.IGNORECASE), "backache"),
-    (re.compile(r"\b(?:ear\s*day|ear\s*date|ear\s*eight|ear\s*ache)\b", re.IGNORECASE), "earache"),
-    (re.compile(r"\b(?:tooth\s*day|tooth\s*date|tooth\s*eight|tooth\s*ache)\b", re.IGNORECASE), "toothache"),
-    (re.compile(r"\b(?:body\s*pane|body\s*pains)\b", re.IGNORECASE), "body pain"),
-    (re.compile(r"\b(?:chest\s*pane)\b", re.IGNORECASE), "chest pain"),
-    (re.compile(r"\b(?:joint\s*pane|joint\s*pains)\b", re.IGNORECASE), "joint pain"),
-    (re.compile(r"\b(?:throat\s*pane)\b", re.IGNORECASE), "throat pain"),
-    (re.compile(r"\b(?:dola|dolor|dolo)\s*[- ]?650\b", re.IGNORECASE), "Dolo 650"),
-    (re.compile(r"\b(?:dola|dolor)\b(?=\s*(?:tablet|tab|dose|daily|twice|once|thrice|mg))", re.IGNORECASE), "Dolo"),
-    (re.compile(r"\b(?:blood\s*presser|blood\s*pleasure)\b", re.IGNORECASE), "blood pressure"),
-    (re.compile(r"\b(?:hyper\s*tension)\b", re.IGNORECASE), "hypertension"),
-    (re.compile(r"\b(?:hypo\s*tension)\b", re.IGNORECASE), "hypotension"),
-    (re.compile(r"\b(?:loose\s*motions)\b", re.IGNORECASE), "loose motion"),
-    (re.compile(r"\b(?:running\s*nose|runny\s*nose)\b", re.IGNORECASE), "running nose"),
-    (re.compile(r"\b(?:soar\s*throat)\b", re.IGNORECASE), "sore throat"),
-    (re.compile(r"\b(?:hi\s*bp|high\s*b\s*\.?\s*p\.?)\b", re.IGNORECASE), "high BP"),
-    (re.compile(r"\b(?:low\s*bp|low\s*b\s*\.?\s*p\.?)\b", re.IGNORECASE), "low BP"),
-    (re.compile(r"\b(?:giddines)\b", re.IGNORECASE), "giddiness"),
-    (re.compile(r"\b(?:vomitting)\b", re.IGNORECASE), "vomiting"),
 ]
+
+# Combined phonetic rules: brand names & medical mishears first, then dosages and vitals
+_PHONETIC_RULES: list[tuple[re.Pattern[str], str]] = list(PHONETIC_CORRECTIONS) + _DOSAGE_AND_VITALS_RULES
 
 
 def normalize_medical_transcript(text: str) -> str:

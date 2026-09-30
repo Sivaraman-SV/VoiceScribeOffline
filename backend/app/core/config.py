@@ -112,7 +112,10 @@ class Settings(BaseSettings):
     asr_beam_size: int = 5
     indic_asr_prompt_biasing: str = (
         "Doctor and patient clinical discussion regarding headache, fever, cough, "
-        "body pain, chest discomfort, nausea, vomiting, medications, Dolo 650, Paracetamol, BP, and vitals."
+        "body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, "
+        "vitals, blood pressure, Volini gel, Moov spray, Omnigel, Dolo 650, Paracetamol, "
+        "Combiflam, Pantocid, Pan-D, Azithral, Augmentin, Cetirizine, Montair-LC, Allegra, "
+        "Digene, Electral ORS, Metformin, Telma."
     )
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
     huggingface_token: str | None = None
