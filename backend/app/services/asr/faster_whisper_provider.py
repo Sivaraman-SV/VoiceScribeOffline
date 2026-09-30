@@ -135,6 +135,55 @@ class FasterWhisperProvider(ASRProvider):
             audio = np.interp(positions, np.arange(len(audio)), audio).astype(np.float32)
 
         results: list[ASRSegment] = []
+        if self.fixed_language == "en":
+            prompt = self._prompt_for("en")
+            segments, _info = model.transcribe(
+                audio,
+                language="en",
+                task="transcribe",
+                beam_size=settings.asr_beam_size,
+                vad_filter=True,
+                vad_parameters=dict(
+                    min_silence_duration_ms=600,
+                    speech_pad_ms=300,
+                ),
+                word_timestamps=True,
+                condition_on_previous_text=True,
+                initial_prompt=prompt,
+                temperature=0.0,
+                compression_ratio_threshold=2.4,
+                log_prob_threshold=-1.0,
+                no_speech_threshold=0.6,
+                repetition_penalty=1.05,
+                no_repeat_ngram_size=0,
+            )
+            for segment in segments:
+                if getattr(segment, "no_speech_prob", 0.0) > 0.8 and getattr(segment, "avg_logprob", 0.0) < -0.8:
+                    continue
+                text = clean_asr_text(segment.text, prompt)
+                text = normalize_medical_transcript(text) if text else ""
+                if not text:
+                    continue
+                results.append(
+                    ASRSegment(
+                        id=f"asr_{frame.sequence:04d}_{len(results):02d}",
+                        text=text,
+                        start_time=round(frame.start_time + segment.start, 3),
+                        end_time=round(frame.start_time + segment.end, 3),
+                        confidence=self._confidence(segment),
+                        language="en",
+                        words=[
+                            {
+                                "word": word.word,
+                                "start": round(frame.start_time + word.start, 3),
+                                "end": round(frame.start_time + word.end, 3),
+                            }
+                            for word in (getattr(segment, "words", None) or [])
+                        ],
+                    )
+                )
+            return results
+
         for start, end in self._utterances(audio):
             piece = audio[int(start * SAMPLE_RATE) : int(end * SAMPLE_RATE)]
             language, language_confidence = self._language_for(model, piece, end - start)
@@ -144,14 +193,10 @@ class FasterWhisperProvider(ASRProvider):
                 language=language,
                 task="transcribe",
                 beam_size=settings.asr_beam_size,
-                # Utterances are already cut at pauses; a second VAD pass would
-                # only clip word onsets.
                 vad_filter=False,
                 word_timestamps=True,
                 condition_on_previous_text=False,
                 initial_prompt=prompt,
-                # Use strict greedy decoding (temperature=0.0) to prevent fallback sampling
-                # from introducing Cyrillic tokens or hallucinated repetitions in Indic languages.
                 temperature=0.0,
                 compression_ratio_threshold=2.4,
                 log_prob_threshold=-1.0,

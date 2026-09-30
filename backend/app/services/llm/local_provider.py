@@ -62,27 +62,34 @@ def _build_local_extraction_prompt(
         valid_hints = [h for h in rule_hints if h.get("value")]
         if valid_hints:
             hints_text = (
-                "HINTS (verify against transcript, discard if not spoken): "
+                "NLP HINTS (verify against transcript, discard if not spoken):\n"
                 f"{json.dumps(valid_hints, default=str)}\n"
             )
 
-    return f"""Extract clinical entities spoken in this transcript. JSON only.
+    return f"""Extract all clinical entities from this outpatient dialogue into valid JSON.
 
-Example — transcript:
-[seg_1] PATIENT: 2 days of severe headache, no fever.
-Correct JSON:
-{{"entities":[
-  {{"entity_type":"SYMPTOM","value":"headache","status":"PRESENT","confidence":0.9,"source_segment_ids":["seg_1"],"detail":"2 days"}},
-  {{"entity_type":"SYMPTOM","value":"fever","status":"NEGATED","confidence":0.9,"source_segment_ids":["seg_1"],"detail":null}}
-],"unsupported_content":[]}}
+ENTITY TYPES:
+- SYMPTOM: Spoken symptoms or complaints (e.g., "headache", "fever", "body pain", "cough").
+- MEDICATION: Named drugs, doses, or formulations (e.g., "Dolo 650", "Paracetamol").
+- FINDING: Vital signs or clinical observations (e.g., "blood pressure", "fever").
+- DIAGNOSIS_MENTIONED: Conditions named by doctor or patient (e.g., "viral fever", "migraine").
+- ALLERGY: Known allergic reactions mentioned.
+- MEDICAL_HISTORY: Past medical or chronic conditions (e.g., "diabetes", "hypertension").
 
-Do NOT add medications unless a named drug was spoken. This example has none — do not copy drugs into the answer.
+STATUS VALUES:
+- PRESENT: Confirmed active symptom or finding.
+- NEGATED: Denied or ruled out symptom (e.g., "no fever", "denies chest pain").
+- UNCERTAIN: Possible or suspected symptom.
+- HISTORICAL: Past condition or resolved symptom.
 
 TRANSCRIPT:
 {transcript}
 {hints_text}
-Return JSON with entities of types SYMPTOM, DIAGNOSIS_MENTIONED, MEDICATION, FINDING, ALLERGY, MEDICAL_HISTORY.
-status: PRESENT, NEGATED, UNCERTAIN, HISTORICAL."""
+Output JSON format:
+{{"entities": [
+  {{"entity_type": "SYMPTOM", "value": "headache", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0001"], "detail": "2 days"}},
+  {{"entity_type": "MEDICATION", "value": "Dolo 650", "status": "PRESENT", "confidence": 0.95, "source_segment_ids": ["seg_0002"], "detail": "taken twice"}}
+], "unsupported_content": []}}"""
 
 
 def _build_local_note_prompt(
@@ -97,20 +104,27 @@ def _build_local_note_prompt(
         f"{e.get('value')} ({e.get('status')})" for e in entities if e.get("value")
     ) or "None documented"
 
-    return f"""Write a SOAP note from this dialogue. JSON only. Empty string if not discussed.
+    return f"""You are a professional medical scribe. Write a comprehensive, high-quality SOAP clinical note in standard clinical English based on the consultation transcript below.
 
-Example — fever and body pain; doctor says rest and fluids; no named drug:
-{{"chief_complaint":"Fever and body pain","history_of_present_illness":"Patient reports fever and body pain.","past_medical_history":"","physical_examination":"","current_medication":"","allergies":"","assessment":"","plan":"Rest and oral fluids as advised.","follow_up":""}}
-
-NEVER invent a tablet, syrup, or diagnosis. If the doctor did not name a drug, plan must not contain one.
+SECTION REQUIREMENTS:
+- chief_complaint: Primary symptoms and duration (e.g., "Headache and fever for 2 days").
+- history_of_present_illness: Detailed narrative of the illness including symptom onset, progression, severity, aggravating/relieving factors, and any medications already taken by the patient. Document denied symptoms explicitly (e.g., "Denies cough, chest pain, or shortness of breath").
+- past_medical_history: Chronic conditions, previous surgeries, or medical history explicitly discussed. If not discussed, return "".
+- physical_examination: Vitals and examination findings mentioned (e.g., BP, pulse, temperature, general appearance). If not discussed, return "".
+- current_medication: Medications taken by the patient prior to or regularly before this visit (e.g. "Dolo 650 taken at home"). If not discussed, return "".
+- allergies: Known drug/food allergies mentioned, or "" if not discussed.
+- assessment: Working diagnosis or clinical impression based on symptoms discussed (e.g., "Acute febrile illness with headache / viral prodrome").
+- plan: Doctor's treatment plan, prescriptions, advice (diet, hydration, rest), and medications ordered during the visit. Never invent medications not discussed.
+- follow_up: Follow-up recommendations and return precautions (e.g., "Review in 3 days if symptoms persist or earlier if fever worsens").
 
 TRANSCRIPT:
 {transcript}
 
-EXTRACTED FINDINGS (already checked against the transcript):
+EXTRACTED FINDINGS:
 {findings}
 
-Return JSON with keys: chief_complaint, history_of_present_illness, past_medical_history, physical_examination, current_medication, allergies, assessment, plan, follow_up."""
+Return JSON with keys:
+chief_complaint, history_of_present_illness, past_medical_history, physical_examination, current_medication, allergies, assessment, plan, follow_up"""
 
 
 class LocalLLMProvider(LLMProvider):
@@ -145,8 +159,8 @@ class LocalLLMProvider(LLMProvider):
 
     async def _post_chat(self, prompt: str, *, purpose: str) -> tuple[str, LLMCallStats]:
         client = self._get_client()
-        num_ctx = getattr(settings, "local_llm_num_ctx", 2048)
-        max_tokens = getattr(settings, "local_llm_max_tokens", 600)
+        num_ctx = getattr(settings, "local_llm_num_ctx", 4096)
+        max_tokens = getattr(settings, "local_llm_max_tokens", 1500)
 
         is_ollama = "11434" in self.base_url
         if is_ollama:

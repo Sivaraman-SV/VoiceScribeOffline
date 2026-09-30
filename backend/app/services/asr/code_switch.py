@@ -320,15 +320,16 @@ def _key(text: str) -> str:
 
 
 def is_prompt_echo(text: str, prompt: str | None) -> bool:
-    """True when a segment is mostly words copied from the style prompt."""
+    """True only when Whisper verbatim repeats the prompt or a substantial chunk of it."""
     if not prompt or not text:
         return False
-    words = _key(text).split()
-    if len(words) < 3:
+    cleaned_text = _key(text)
+    cleaned_prompt = _key(prompt)
+    if not cleaned_text or not cleaned_prompt:
         return False
-    prompt_words = set(_key(prompt).split())
-    overlap = sum(1 for word in words if word in prompt_words)
-    return overlap / len(words) >= 0.6
+    if cleaned_text == cleaned_prompt or (len(cleaned_text.split()) >= 6 and cleaned_text in cleaned_prompt):
+        return True
+    return False
 
 
 _CYRILLIC_OR_GREEK = re.compile(r"[\u0400-\u04FF\u0370-\u03FF]+")
