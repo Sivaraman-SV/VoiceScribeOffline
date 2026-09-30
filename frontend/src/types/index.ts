@@ -210,6 +210,7 @@ export interface Session {
   audio_source: AudioSource
   ai_mode: string
   model_name: string
+  asr_provider?: string | null
   started_at: string | null
   ended_at: string | null
   created_at: string

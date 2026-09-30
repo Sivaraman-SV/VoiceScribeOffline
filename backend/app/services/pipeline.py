@@ -182,6 +182,7 @@ class SessionPipeline:
                 asr=build_asr_provider(
                     script=script if is_simulation else None,
                     audio_source=session.audio_source,
+                    provider_name=getattr(session, "asr_provider", None),
                 ),
                 diarizer=build_diarization_provider(audio_source=session.audio_source),
                 llm=build_llm_provider(model_name=session.model_name),

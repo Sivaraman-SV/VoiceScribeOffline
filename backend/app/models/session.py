@@ -65,6 +65,7 @@ class Session(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     ai_mode: Mapped[str] = mapped_column(String(32), default="gemini", nullable=False)
     model_name: Mapped[str] = mapped_column(String(128), default="gemini-2.5-flash", nullable=False)
+    asr_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

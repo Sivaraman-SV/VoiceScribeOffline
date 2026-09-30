@@ -41,8 +41,12 @@ class UnavailableASRProvider(ASRProvider):
         return {"name": self.name, "mock": False, "reason": self.reason}
 
 
-def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> ASRProvider:
-    """Return the ASR provider appropriate for ``audio_source``.
+def build_asr_provider(
+    script=None,
+    audio_source: AudioSource | None = None,
+    provider_name: str | None = None,
+) -> ASRProvider:
+    """Return the ASR provider appropriate for ``audio_source`` and ``provider_name``.
 
     ``audio_source`` defaults to real audio; scripted transcription has to be
     asked for explicitly so that a forgotten argument can never downgrade a real
@@ -51,13 +55,18 @@ def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> 
     if audio_source is AudioSource.SIMULATION:
         return MockASRProvider(script=script)
 
-    if settings.asr_provider is ASRProviderName.MOCK:
+    active_provider = (
+        provider_name
+        or (settings.asr_provider.value if hasattr(settings.asr_provider, "value") else str(settings.asr_provider))
+    )
+
+    if active_provider == ASRProviderName.MOCK.value:
         return UnavailableASRProvider(
             "ASR_PROVIDER=mock replays a scripted demo conversation and cannot transcribe real "
-            "audio. Set ASR_PROVIDER=faster_whisper or ASR_PROVIDER=gemini."
+            "audio. Set ASR_PROVIDER=faster_whisper, parakeet, or gemini."
         )
 
-    if settings.asr_provider is ASRProviderName.GEMINI:
+    if active_provider == ASRProviderName.GEMINI.value:
         from app.services.asr.gemini_provider import GeminiASRProvider
 
         if not settings.gemini_configured:
@@ -72,13 +81,19 @@ def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> 
             )
         return GeminiASRProvider()
 
-    if settings.asr_provider in (
-        ASRProviderName.INDIC_WHISPER,
-        ASRProviderName.TANGLISH_WHISPER,
-        ASRProviderName.TANGLISH_MED,
-        ASRProviderName.HINGLISH_WHISPER,
-        ASRProviderName.INDIC_CONFORMER,
-        ASRProviderName.FASTER_WHISPER,
+    if active_provider in (ASRProviderName.PARAKEET.value, "parakeet"):
+        from app.services.asr.parakeet_provider import ParakeetASRProvider
+
+        return ParakeetASRProvider()
+
+    if active_provider in (
+        ASRProviderName.INDIC_WHISPER.value,
+        ASRProviderName.TANGLISH_WHISPER.value,
+        ASRProviderName.TANGLISH_MED.value,
+        ASRProviderName.HINGLISH_WHISPER.value,
+        ASRProviderName.INDIC_CONFORMER.value,
+        ASRProviderName.FASTER_WHISPER.value,
+        "faster_whisper",
     ):
         try:
             import faster_whisper  # noqa: F401
@@ -91,7 +106,7 @@ def build_asr_provider(script=None, audio_source: AudioSource | None = None) -> 
 
         return FasterWhisperProvider(language="en")
 
-    return UnavailableASRProvider(f"Unknown ASR provider: {settings.asr_provider}")
+    return UnavailableASRProvider(f"Unknown ASR provider: {active_provider}")
 
 
 __all__ = [

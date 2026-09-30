@@ -88,6 +88,7 @@ export interface CreateSessionInput {
   mode: string
   audio_source?: string | null
   model_name?: string | null
+  asr_provider?: string | null
 }
 
 export const api = {

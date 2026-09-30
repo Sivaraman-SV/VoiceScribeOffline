@@ -167,6 +167,7 @@ async def _migrate_sqlite_schema(engine: AsyncEngine) -> None:
                 ("doctor_name", "ALTER TABLE sessions ADD COLUMN doctor_name VARCHAR(255)"),
                 ("faculty_name", "ALTER TABLE sessions ADD COLUMN faculty_name VARCHAR(255)"),
                 ("audio_source", "ALTER TABLE sessions ADD COLUMN audio_source VARCHAR(32) DEFAULT 'MICROPHONE'"),
+                ("asr_provider", "ALTER TABLE sessions ADD COLUMN asr_provider VARCHAR(64)"),
             ]
             for col_name, sql in session_migrations:
                 if col_name not in existing_session_cols:

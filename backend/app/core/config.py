@@ -27,6 +27,7 @@ class AIMode(str, Enum):
 class ASRProviderName(str, Enum):
     GEMINI = "gemini"
     FASTER_WHISPER = "faster_whisper"
+    PARAKEET = "parakeet"
     INDIC_WHISPER = "indic_whisper"
     INDIC_CONFORMER = "indic_conformer"
     TANGLISH_WHISPER = "tanglish_whisper"
@@ -97,6 +98,7 @@ class Settings(BaseSettings):
     asr_provider: ASRProviderName = ASRProviderName.FASTER_WHISPER
     diarization_provider: DiarizationProviderName = DiarizationProviderName.LOCAL
     faster_whisper_model: str = "large-v3-turbo"
+    parakeet_model: str = "nvidia/parakeet-ctc-0.6b"
     asr_device: str = "cpu"
     asr_compute_type: str = "int8"
     indic_whisper_model: str = "ai4bharat/whisper-medium-hi_alldata_multigpu"

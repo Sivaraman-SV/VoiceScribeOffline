@@ -24,6 +24,7 @@ class SessionCreate(BaseModel):
     mode: SessionMode = SessionMode.DEMO
     audio_source: AudioSource | None = None
     model_name: str | None = None
+    asr_provider: str | None = None
 
 
 class SpeakerOut(BaseModel):
@@ -59,6 +60,7 @@ class SessionOut(BaseModel):
     audio_source: AudioSource
     ai_mode: str
     model_name: str
+    asr_provider: str | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
     created_at: datetime

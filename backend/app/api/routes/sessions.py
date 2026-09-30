@@ -62,6 +62,7 @@ async def create_session(payload: SessionCreate, db: DbSession, principal: Curre
             or (settings.local_llm_model if settings.effective_ai_mode.value in ("local", "ollama")
                 else (settings.gemini_model if settings.gemini_configured else "medscribe-rules-v1"))
         ),
+        asr_provider=payload.asr_provider or (settings.asr_provider.value if hasattr(settings.asr_provider, "value") else str(settings.asr_provider)),
     )
     db.add(session)
     await db.flush()

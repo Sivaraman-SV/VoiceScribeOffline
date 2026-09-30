@@ -151,6 +151,7 @@ async def serialize_session(db: AsyncSession, session: SessionModel) -> SessionO
         audio_source=session.audio_source,
         ai_mode=session.ai_mode,
         model_name=session.model_name,
+        asr_provider=getattr(session, "asr_provider", None),
         started_at=session.started_at,
         ended_at=session.ended_at,
         created_at=session.created_at,

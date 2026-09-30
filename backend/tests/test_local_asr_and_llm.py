@@ -130,3 +130,26 @@ def test_llm_parses_fenced_json() -> None:
 ```"""
     parsed = _parse(text, ExtractionResult)
     assert parsed.entities[0].value == "chest pain"
+
+
+def test_build_asr_provider_parakeet() -> None:
+    from app.services.asr import build_asr_provider
+    from app.services.asr.parakeet_provider import ParakeetASRProvider
+
+    provider = build_asr_provider(provider_name="parakeet")
+    assert isinstance(provider, ParakeetASRProvider)
+    assert provider.name == "parakeet"
+    desc = provider.describe()
+    assert desc["model"] == "nvidia/parakeet-ctc-0.6b"
+    assert desc["language"] == "en"
+
+
+def test_session_create_schema_accepts_asr_provider() -> None:
+    from app.schemas.session import SessionCreate
+
+    sc = SessionCreate(
+        name="Test",
+        patient_id="PT-001",
+        asr_provider="parakeet",
+    )
+    assert sc.asr_provider == "parakeet"
