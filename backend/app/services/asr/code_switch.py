@@ -37,10 +37,10 @@ _LANGUAGE_ALIASES: dict[str, str] = {
 # numbers), so that if Whisper ever echoes one it cannot invent a finding - and
 # ``is_prompt_echo`` drops that echo anyway.
 _STYLE_PROMPTS: dict[str, str] = {
-    "ta": "doctor, எனக்கு 2 days-ஆ severe headache and chest pain இருக்கு. Paracetamol Dolo 650 tablet போட்டேன். BP check பண்ணனும்.",
-    "hi": "doctor, मुझे 2 days से fever and chest pain है। मैंने Paracetamol Dolo 650 tablet ली थी। BP check करना है।",
-    "te": "doctor garu, నాకు 2 days నుండి fever ఉంది. Paracetamol Dolo 650 tablet వేసుకున్నాను. BP check చేయాలి.",
-    "en": "Doctor and patient clinical discussion regarding headache, fever, cough, body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, vitals, blood pressure, Volini gel, Moov spray, Omnigel, Dolo 650, Paracetamol, Combiflam, Pantocid, Pan-D, Azithral, Augmentin, Cetirizine, Montair-LC, Allegra, Digene, Electral ORS, Metformin, Telma.",
+    "ta": "சரி doctor, நான் சொல்றேன். Okay, அப்புறம் என்ன பண்ணணும்?",
+    "hi": "हाँ doctor, मैं बताता हूँ। Okay, उसके बाद क्या करना है?",
+    "te": "సరే doctor garu, నేను చెప్తాను. Okay, తర్వాత ఏం చేయాలి?",
+    "en": "Okay doctor, let me explain. Right, so what should I do next?",
 }
 
 
@@ -176,14 +176,21 @@ class LanguagePolicy:
     """Chooses one utterance's language from Whisper's language probabilities."""
 
     allowed: tuple[str, ...] = ("en",)
-    stickiness: float = 0.15
+    # Whisper's language classifier leans English on code-mixed Indian speech
+    # (English loanwords), so English must be clearly ahead to win ...
+    english_threshold: float = 0.7
+    # ... and an Indian language only needs a modest share to be decoded as such.
+    indic_threshold: float = 0.2
     short_utterance_seconds: float = 2.0
     previous: str | None = "en"
     counts: dict[str, int] = field(default_factory=dict)
+    # Normalised scores behind the last decision, read by the hybrid recogniser.
+    last_scores: dict[str, float] = field(default_factory=dict)
 
     def choose(self, probabilities: list[tuple[str, float]], duration: float) -> tuple[str, float]:
         if not self.allowed or self.allowed == ("en",):
             self.previous = "en"
+            self.last_scores = {"en": 1.0}
             return "en", 1.0
         scores: dict[str, float] = {}
         for language, probability in probabilities:
@@ -194,42 +201,41 @@ class LanguagePolicy:
 
         if not scores:
             fallback = self.previous or (self.allowed[0] if self.allowed else "en")
+            self.last_scores = {}
             return fallback, 0.0
 
         total = sum(scores.values()) or 1.0
         normalized = {language: score / total for language, score in scores.items()}
+        self.last_scores = normalized
+        indic = {language: score for language, score in normalized.items() if language != "en"}
+        best_indic = max(indic, key=indic.__getitem__) if indic else None
 
-        # CRITICAL: Whisper's acoustic classifier has a massive English prior.
-        # In a Tamil clinic, code-mixed utterances often score 0.10-0.40 for 'ta'
-        # while 'en' scores 0.55-0.75 simply because of English loanwords.
-        # However, a clear English sentence scores en >= 0.85.
-        # When 'ta' is present and 'en' is not overwhelmingly dominant (< 0.85):
-        # decode as 'ta' so Tamil words are written in authentic Tamil script
-        # and English words stay in Latin script.
-        if "ta" in self.allowed and normalized.get("ta", 0.0) >= 0.10 and normalized.get("en", 0.0) < 0.85:
-            self.previous = "ta"
-            self.counts["ta"] = self.counts.get("ta", 0) + 1
-            return "ta", round(normalized.get("ta", 0.0), 4)
+        if normalized.get("en", 0.0) >= self.english_threshold:
+            language = "en"
+        elif best_indic and indic[best_indic] >= self.indic_threshold:
+            language = best_indic
+        else:
+            language = max(normalized, key=normalized.__getitem__)
 
-        if "hi" in self.allowed and normalized.get("hi", 0.0) >= 0.10 and normalized.get("en", 0.0) < 0.85:
-            self.previous = "hi"
-            self.counts["hi"] = self.counts.get("hi", 0) + 1
-            return "hi", round(normalized.get("hi", 0.0), 4)
+        # A short "okay" / "haan" carries too little audio to trust a switch.
+        # Each decision depends only on this utterance and the one before it, so
+        # a long consultation cannot drift into one language.
+        if (
+            duration < self.short_utterance_seconds
+            and self.previous in normalized
+            and self.previous != language
+            and normalized[self.previous] >= 0.25
+        ):
+            language = self.previous
 
-        biased = dict(normalized)
-        if self.previous in biased:
-            bonus = self.stickiness * (2.0 if duration < self.short_utterance_seconds else 1.0)
-            biased[self.previous] += bonus
-        # A language that has dominated the session so far wins close calls
-        if self.counts:
-            dominant = max(self.counts, key=self.counts.__getitem__)
-            if dominant in biased and dominant != "en":
-                biased[dominant] += 0.05
-
-        language = max(biased, key=biased.__getitem__)
         self.previous = language
         self.counts[language] = self.counts.get(language, 0) + 1
         return language, round(normalized.get(language, 0.0), 4)
+
+    def best_indic(self) -> str | None:
+        """Most likely Indian language for the last utterance, if any scored."""
+        indic = {language: score for language, score in self.last_scores.items() if language != "en"}
+        return max(indic, key=indic.__getitem__) if indic else None
 
 
 # --------------------------------------------------------------------------

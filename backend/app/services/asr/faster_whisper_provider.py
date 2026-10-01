@@ -3,12 +3,15 @@
 Installed via ``pip install -r requirements-asr.txt``. The import is lazy so the
 prototype runs (and Demo Mode works) without the ML stack present.
 
-Whisper fixes one language for each 30-second window, so a consultation that
-moves between Tamil, English and Hindi used to come out in a single language
-(and script) for the whole recording. Instead, the audio is cut at pauses into
-utterances, each utterance's language is detected among ``ASR_LANGUAGES`` only,
-and it is decoded in that language with a code-mixed style prompt so English
-words stay in English. See ``code_switch.py``.
+Every recording is cut at pauses into utterances and each utterance is decoded
+on its own. Whisper never conditions on its previous output, so one misheard
+window cannot cascade into the rest of a long consultation, and with
+``ASR_LANGUAGES`` set each utterance's language is detected among the clinic's
+languages only (see ``code_switch.py``).
+
+With ``ASR_SECOND_PASS=indic_conformer``, utterances that are mostly Hindi, Tamil
+or Telugu go to AI4Bharat IndicConformer instead, and Whisper output that fails
+the checks in ``hypothesis.py`` is re-recognised by it.
 """
 
 from __future__ import annotations
@@ -22,6 +25,8 @@ from app.core.config import settings
 from app.core.logging import get_logger, track_duration
 from app.services.asr.base import ASRProvider
 from app.services.asr.code_switch import LanguagePolicy, clean_asr_text, parse_languages, style_prompt
+from app.services.asr.hypothesis import DecodeQuality, conformer_plausible, whisper_problem
+from app.services.asr.indic_conformer_engine import IndicConformerEngine
 from app.services.asr.medical_normalizer import normalize_medical_transcript
 from app.services.types import ASRSegment, AudioFrame
 
@@ -30,13 +35,22 @@ logger = get_logger(__name__)
 SAMPLE_RATE = 16000
 
 # Utterance cutting: pauses longer than this end an utterance ...
-_SPLIT_SILENCE_MS = 450
-# ... short pauses are bridged, up to this length, to give language detection
-# and the decoder enough context.
-_MERGE_GAP_SECONDS = 0.6
-_MAX_UTTERANCE_SECONDS = 20.0
+_SPLIT_SILENCE_MS = 500
+# ... pauses up to this length are bridged, and fragments shorter than
+# _MIN_CONTEXT_SECONDS are joined to a neighbour: Whisper and language
+# detection both need a few seconds of context to be reliable.
+_MERGE_GAP_SECONDS = 1.0
+_MIN_CONTEXT_SECONDS = 2.5
+_MAX_UTTERANCE_SECONDS = 25.0
 _MIN_UTTERANCE_SECONDS = 0.3
 _PAD_SECONDS = 0.2
+# Re-decoded at higher temperature when the greedy/beam result trips the
+# compression-ratio or log-probability thresholds.
+_TEMPERATURES = (0.0, 0.2, 0.4, 0.6)
+# Below this share of English, an utterance counts as Indian-language speech.
+_ENGLISH_HEAVY = 0.5
+_CONFORMER_CONFIDENCE = 0.85
+_REJECTED_CONFIDENCE = 0.35
 
 # One model per (name, device, compute type) for the whole process. Loading
 # large-v3-turbo takes several seconds and ~1.5 GB, so it must not be repeated
@@ -87,6 +101,37 @@ def load_whisper_model(model_name: str, device: str, compute_type: str) -> tuple
         return model, device, compute_type
 
 
+def merge_spans(spans: list[tuple[float, float]], duration: float) -> list[tuple[float, float]]:
+    """Join VAD speech spans into utterances long enough to recognise reliably."""
+    merged: list[list[float]] = []
+    for start, end in spans:
+        if merged and start - merged[-1][1] <= _MERGE_GAP_SECONDS and end - merged[-1][0] <= _MAX_UTTERANCE_SECONDS:
+            merged[-1][1] = end
+        else:
+            merged.append([start, end])
+
+    joined: list[list[float]] = []
+    for span in merged:
+        previous = joined[-1] if joined else None
+        too_short = span[1] - span[0] < _MIN_CONTEXT_SECONDS or (
+            previous is not None and previous[1] - previous[0] < _MIN_CONTEXT_SECONDS
+        )
+        if (
+            previous is not None
+            and too_short
+            and span[0] - previous[1] <= 2 * _MERGE_GAP_SECONDS
+            and span[1] - previous[0] <= _MAX_UTTERANCE_SECONDS
+        ):
+            previous[1] = span[1]
+        else:
+            joined.append(list(span))
+    return [
+        (max(0.0, start), min(duration, end))
+        for start, end in joined
+        if end - start >= _MIN_UTTERANCE_SECONDS
+    ]
+
+
 class FasterWhisperProvider(ASRProvider):
     name = "faster_whisper"
     is_mock = False
@@ -99,6 +144,7 @@ class FasterWhisperProvider(ASRProvider):
         initial_prompt: str | None = None,
         language: str | None = None,
         languages: str | None = None,
+        second_pass: IndicConformerEngine | None = None,
     ) -> None:
         self.model_name = model_name or settings.faster_whisper_model
         self.device = device or getattr(settings, "asr_device", "auto")
@@ -111,11 +157,21 @@ class FasterWhisperProvider(ASRProvider):
         fixed = (language or settings.indic_asr_language or "auto").lower().strip()
         self.fixed_language = None if fixed in ("auto", "none", "", "code_switching", "indic") else fixed
         self.languages = parse_languages(languages if languages is not None else settings.asr_languages)
+        if not self.fixed_language and self.languages == ("en",):
+            self.fixed_language = "en"
         self.use_style_prompts = settings.asr_style_prompts
         # Per provider instance, i.e. per session: remembers which language the
         # conversation has been in.
         self.policy = LanguagePolicy(allowed=self.languages)
+        self.second_pass = second_pass
+        if self.second_pass is None and settings.asr_second_pass == "indic_conformer" and self._expects_indic():
+            self.second_pass = IndicConformerEngine()
         self._model: Any | None = None
+
+    def _expects_indic(self) -> bool:
+        if self.fixed_language:
+            return self.fixed_language != "en"
+        return any(language != "en" for language in self.languages) or not self.languages
 
     def _load(self) -> Any:
         if self._model is None:
@@ -126,6 +182,11 @@ class FasterWhisperProvider(ASRProvider):
 
     async def warmup(self) -> None:  # pragma: no cover - requires model download
         await asyncio.to_thread(self._load)
+        if self.second_pass is not None:
+            try:
+                await asyncio.to_thread(self.second_pass.load)
+            except Exception as exc:
+                self._disable_second_pass(exc)
 
     async def transcribe(self, audio_chunk: AudioFrame) -> list[ASRSegment]:  # pragma: no cover - optional dependency
         if not audio_chunk.decoded or not audio_chunk.pcm:
@@ -135,7 +196,7 @@ class FasterWhisperProvider(ASRProvider):
             return await asyncio.to_thread(self._transcribe_sync, model, audio_chunk)
 
     # ------------------------------------------------------------- internals
-    def _transcribe_sync(self, model: Any, frame: AudioFrame) -> list[ASRSegment]:  # pragma: no cover
+    def _transcribe_sync(self, model: Any, frame: AudioFrame) -> list[ASRSegment]:
         import numpy as np  # type: ignore
 
         audio = np.frombuffer(frame.pcm, dtype=np.int16).astype(np.float32) / 32768.0
@@ -146,121 +207,176 @@ class FasterWhisperProvider(ASRProvider):
             audio = np.interp(positions, np.arange(len(audio)), audio).astype(np.float32)
 
         results: list[ASRSegment] = []
-        if self.fixed_language == "en":
-            prompt = self._prompt_for("en")
-            hotwords = (
-                "Volini Moov Omnigel Relispray Dolo Paracetamol Combiflam "
-                "Pantocid Pan-D Azithral Augmentin Cetirizine Montair-LC Allegra "
-                "Digene Electral ORS Metformin Telma headache fever cough body pain "
-                "backache joint pain chest pain blood pressure"
-            )
-            transcribe_kwargs = {
-                "language": "en",
-                "task": "transcribe",
-                "beam_size": settings.asr_beam_size,
-                "vad_filter": True,
-                "vad_parameters": dict(
-                    min_silence_duration_ms=600,
-                    speech_pad_ms=300,
-                ),
-                "word_timestamps": True,
-                "condition_on_previous_text": True,
-                "initial_prompt": prompt,
-                "temperature": 0.0,
-                "compression_ratio_threshold": 2.4,
-                "log_prob_threshold": -1.0,
-                "no_speech_threshold": 0.6,
-                "repetition_penalty": 1.05,
-                "no_repeat_ngram_size": 0,
-            }
-            try:
-                segments, _info = model.transcribe(audio, hotwords=hotwords, **transcribe_kwargs)
-            except (TypeError, ValueError):
-                segments, _info = model.transcribe(audio, **transcribe_kwargs)
-            for segment in segments:
-                if getattr(segment, "no_speech_prob", 0.0) > 0.8 and getattr(segment, "avg_logprob", 0.0) < -0.8:
-                    continue
-                text = clean_asr_text(segment.text, prompt)
-                text = normalize_medical_transcript(text) if text else ""
-                if not text:
-                    continue
-                results.append(
-                    ASRSegment(
-                        id=f"asr_{frame.sequence:04d}_{len(results):02d}",
-                        text=text,
-                        start_time=round(frame.start_time + segment.start, 3),
-                        end_time=round(frame.start_time + segment.end, 3),
-                        confidence=self._confidence(segment),
-                        language="en",
-                        words=[
-                            {
-                                "word": word.word,
-                                "start": round(frame.start_time + word.start, 3),
-                                "end": round(frame.start_time + word.end, 3),
-                            }
-                            for word in (getattr(segment, "words", None) or [])
-                        ],
-                    )
-                )
-            return results
-
         for start, end in self._utterances(audio):
             piece = audio[int(start * SAMPLE_RATE) : int(end * SAMPLE_RATE)]
-            language, language_confidence = self._language_for(model, piece, end - start)
-            prompt = self._prompt_for(language)
-            segments, _info = model.transcribe(
-                piece,
-                language=language,
-                task="transcribe",
-                beam_size=settings.asr_beam_size,
-                vad_filter=False,
-                word_timestamps=True,
-                condition_on_previous_text=False,
-                initial_prompt=prompt,
-                temperature=0.0,
-                compression_ratio_threshold=2.4,
-                log_prob_threshold=-1.0,
-                no_speech_threshold=0.6,
-                repetition_penalty=1.05,
-                no_repeat_ngram_size=0,
-            )
-            for segment in segments:
-                if getattr(segment, "no_speech_prob", 0.0) > 0.8 and getattr(segment, "avg_logprob", 0.0) < -0.8:
-                    continue
-                text = clean_asr_text(segment.text, prompt)
-                text = normalize_medical_transcript(text) if text else ""
-                if not text:
-                    continue
-                offset = frame.start_time + start
-                results.append(
-                    ASRSegment(
-                        id=f"asr_{frame.sequence:04d}_{len(results):02d}",
-                        text=text,
-                        start_time=round(offset + segment.start, 3),
-                        end_time=round(offset + segment.end, 3),
-                        confidence=self._confidence(segment),
-                        language=language or "auto",
-                        words=[
-                            {
-                                "word": word.word,
-                                "start": round(offset + word.start, 3),
-                                "end": round(offset + word.end, 3),
-                            }
-                            for word in (getattr(segment, "words", None) or [])
-                        ],
-                    )
-                )
+            duration = end - start
+            language, language_confidence = self._language_for(model, piece, duration)
+            english_share = self._english_share(language)
+            offset = frame.start_time + start
+
+            source, reason = "whisper", "English-heavy utterance"
+            conformer_language = language if self._conformer_handles(language) else None
+            if conformer_language and english_share < _ENGLISH_HEAVY:
+                text = self._second_pass_text(piece, conformer_language, duration)
+                if text:
+                    self._append_conformer(results, frame, text, offset, offset + duration, conformer_language)
+                    source, reason = "indic_conformer", "Indian-language utterance"
+                else:
+                    reason = "second recogniser returned nothing usable"
+
+            if source == "whisper":
+                segments, prompt = self._decode_whisper(model, piece, language)
+                raw_text = " ".join((segment.text or "").strip() for segment in segments).strip()
+                problem = whisper_problem(raw_text, language, duration, self._quality(segments))
+                rescue_language = conformer_language or self._rescue_language()
+                rescued = None
+                if problem and rescue_language and self._conformer_handles(rescue_language):
+                    rescued = self._second_pass_text(piece, rescue_language, duration)
+                if rescued:
+                    self._append_conformer(results, frame, rescued, offset, offset + duration, rescue_language)
+                    source, reason = "indic_conformer", f"Whisper rejected: {problem}"
+                else:
+                    self._append_whisper(results, frame, segments, prompt, offset, language, problem)
+                    if problem:
+                        reason = f"kept with low confidence: {problem}"
+
             logger.debug(
                 "asr_utterance",
                 extra={
                     "session_id": frame.session_id,
-                    "start": round(frame.start_time + start, 2),
-                    "end": round(frame.start_time + end, 2),
+                    "start": round(offset, 2),
+                    "end": round(offset + duration, 2),
                     "language": language,
                     "language_confidence": language_confidence,
+                    "english_share": round(english_share, 3),
+                    "source": source,
+                    "reason": reason,
                 },
             )
         return results
+
+    def _decode_whisper(self, model: Any, piece: Any, language: str | None) -> tuple[list[Any], str | None]:
+        prompt = self._prompt_for(language)
+        segments, _info = model.transcribe(
+            piece,
+            language=language,
+            task="transcribe",
+            beam_size=settings.asr_beam_size,
+            vad_filter=False,
+            word_timestamps=True,
+            condition_on_previous_text=False,
+            initial_prompt=prompt,
+            temperature=list(_TEMPERATURES),
+            compression_ratio_threshold=2.4,
+            log_prob_threshold=-1.0,
+            no_speech_threshold=0.6,
+            repetition_penalty=1.05,
+            no_repeat_ngram_size=0,
+        )
+        kept = [
+            segment
+            for segment in segments
+            if not (getattr(segment, "no_speech_prob", 0.0) > 0.8 and getattr(segment, "avg_logprob", 0.0) < -0.8)
+        ]
+        return kept, prompt
+
+    @staticmethod
+    def _quality(segments: list[Any]) -> DecodeQuality:
+        if not segments:
+            return DecodeQuality()
+        weights = [max(getattr(s, "end", 0.0) - getattr(s, "start", 0.0), 0.01) for s in segments]
+        total = sum(weights)
+        logprob = sum(getattr(s, "avg_logprob", 0.0) * w for s, w in zip(segments, weights)) / total
+        compression = max(getattr(s, "compression_ratio", 1.0) for s in segments)
+        return DecodeQuality(avg_logprob=logprob, compression_ratio=compression)
+
+    def _append_whisper(
+        self,
+        results: list[ASRSegment],
+        frame: AudioFrame,
+        segments: list[Any],
+        prompt: str | None,
+        offset: float,
+        language: str | None,
+        problem: str | None,
+    ) -> None:
+        for segment in segments:
+            text = clean_asr_text(segment.text, prompt)
+            text = normalize_medical_transcript(text) if text else ""
+            if not text:
+                continue
+            confidence = self._confidence(segment)
+            if problem:
+                confidence = min(confidence, _REJECTED_CONFIDENCE)
+            results.append(
+                ASRSegment(
+                    id=f"asr_{frame.sequence:04d}_{len(results):02d}",
+                    text=text,
+                    start_time=round(offset + segment.start, 3),
+                    end_time=round(offset + segment.end, 3),
+                    confidence=confidence,
+                    language=language or "auto",
+                    words=[
+                        {
+                            "word": word.word,
+                            "start": round(offset + word.start, 3),
+                            "end": round(offset + word.end, 3),
+                        }
+                        for word in (getattr(segment, "words", None) or [])
+                    ],
+                )
+            )
+
+    @staticmethod
+    def _append_conformer(
+        results: list[ASRSegment], frame: AudioFrame, text: str, start: float, end: float, language: str
+    ) -> None:
+        cleaned = clean_asr_text(text)
+        cleaned = normalize_medical_transcript(cleaned) if cleaned else ""
+        if not cleaned:
+            return
+        results.append(
+            ASRSegment(
+                id=f"asr_{frame.sequence:04d}_{len(results):02d}",
+                text=cleaned,
+                start_time=round(start, 3),
+                end_time=round(end, 3),
+                confidence=_CONFORMER_CONFIDENCE,
+                language=language,
+                words=[],
+            )
+        )
+
+    def _conformer_handles(self, language: str | None) -> bool:
+        return self.second_pass is not None and self.second_pass.supports(language)
+
+    def _rescue_language(self) -> str | None:
+        """Indian language to re-recognise a rejected English decode in."""
+        if self.fixed_language:
+            return None
+        candidate = self.policy.best_indic()
+        if candidate and self.policy.last_scores.get(candidate, 0.0) >= 0.1:
+            return candidate
+        return None
+
+    def _second_pass_text(self, piece: Any, language: str, duration: float) -> str | None:
+        assert self.second_pass is not None
+        try:
+            text = self.second_pass.transcribe(piece, language)
+        except Exception as exc:
+            self._disable_second_pass(exc)
+            return None
+        return text if conformer_plausible(text, duration) else None
+
+    def _disable_second_pass(self, exc: Exception) -> None:
+        if self.second_pass is not None and self.second_pass.failed is None:
+            self.second_pass.failed = str(exc) or type(exc).__name__
+            logger.exception("asr_second_pass_disabled", extra={"model": self.second_pass.model_name})
+
+    def _english_share(self, language: str | None) -> float:
+        if self.fixed_language:
+            return 1.0 if self.fixed_language == "en" else 0.0
+        return self.policy.last_scores.get("en", 1.0 if language == "en" else 0.0)
 
     def _utterances(self, audio: Any) -> list[tuple[float, float]]:  # pragma: no cover - optional dependency
         """Speech spans in seconds, cut at pauses and merged to a usable length."""
@@ -279,25 +395,11 @@ class FasterWhisperProvider(ASRProvider):
         except Exception:
             logger.warning("asr_vad_failed_transcribing_whole_frame", exc_info=True)
             return [(0.0, duration)] if duration >= _MIN_UTTERANCE_SECONDS else []
+        return merge_spans(
+            [(span["start"] / SAMPLE_RATE, span["end"] / SAMPLE_RATE) for span in spans], duration
+        )
 
-        merged: list[list[float]] = []
-        for span in spans:
-            start, end = span["start"] / SAMPLE_RATE, span["end"] / SAMPLE_RATE
-            if (
-                merged
-                and start - merged[-1][1] <= _MERGE_GAP_SECONDS
-                and end - merged[-1][0] <= _MAX_UTTERANCE_SECONDS
-            ):
-                merged[-1][1] = end
-            else:
-                merged.append([start, end])
-        return [
-            (max(0.0, start), min(duration, end))
-            for start, end in merged
-            if end - start >= _MIN_UTTERANCE_SECONDS
-        ]
-
-    def _language_for(self, model: Any, piece: Any, duration: float) -> tuple[str | None, float]:  # pragma: no cover
+    def _language_for(self, model: Any, piece: Any, duration: float) -> tuple[str | None, float]:
         if self.fixed_language:
             return self.fixed_language, 1.0
         try:
@@ -323,6 +425,7 @@ class FasterWhisperProvider(ASRProvider):
             "compute_type": self.compute_type,
             "languages": list(self.languages) or "any",
             "language_mode": self.fixed_language or "per-utterance (code-switching)",
+            "second_pass": self.second_pass.describe() if self.second_pass else None,
         }
 
     @staticmethod

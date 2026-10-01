@@ -104,7 +104,9 @@ def build_asr_provider(
             )
         from app.services.asr.faster_whisper_provider import FasterWhisperProvider
 
-        return FasterWhisperProvider(language="en")
+        # Language mode comes from INDIC_ASR_LANGUAGE / ASR_LANGUAGES; hard-coding
+        # "en" here decoded Tamil, Hindi and Telugu speech as English.
+        return FasterWhisperProvider()
 
     return UnavailableASRProvider(f"Unknown ASR provider: {active_provider}")
 

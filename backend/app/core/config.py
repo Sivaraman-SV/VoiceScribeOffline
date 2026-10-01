@@ -134,13 +134,14 @@ class Settings(BaseSettings):
     asr_languages: str = "en"
     asr_style_prompts: bool = True
     asr_beam_size: int = 2
-    indic_asr_prompt_biasing: str = (
-        "Doctor and patient clinical discussion regarding headache, fever, cough, "
-        "body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, "
-        "vitals, blood pressure, Volini gel, Moov spray, Omnigel, Dolo 650, Paracetamol, "
-        "Combiflam, Pantocid, Pan-D, Azithral, Augmentin, Cetirizine, Montair-LC, Allegra, "
-        "Digene, Electral ORS, Metformin, Telma."
-    )
+    # Replaces the built-in style prompts when set. Keep drugs, symptoms and numbers
+    # out of it: Whisper copies prompt words into the transcript.
+    indic_asr_prompt_biasing: str = ""
+    # Second recogniser for Indian-language utterances: "indic_conformer" runs
+    # AI4Bharat IndicConformer-600M next to Whisper and keeps the better hypothesis.
+    asr_second_pass: str = "none"
+    asr_second_pass_model: str = "ai4bharat/indic-conformer-600m-multilingual"
+    asr_second_pass_decoder: str = "ctc"
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
     huggingface_token: str | None = None
 
