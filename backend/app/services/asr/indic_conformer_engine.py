@@ -28,6 +28,9 @@ SUPPORTED_LANGUAGES = frozenset(
 )
 
 _MODELS: dict[str, Any] = {}
+# A model that failed to load is not retried by later sessions, and the status
+# endpoint can report why it is off.
+_FAILURES: dict[str, str] = {}
 _LOCK = threading.Lock()
 
 
@@ -39,7 +42,21 @@ class IndicConformerEngine:
     def __init__(self, model_name: str | None = None, decoder: str | None = None) -> None:
         self.model_name = model_name or settings.asr_second_pass_model
         self.decoder = (decoder or settings.asr_second_pass_decoder or "ctc").lower()
-        self.failed: str | None = None
+
+    @property
+    def failed(self) -> str | None:
+        return _FAILURES.get(self.model_name)
+
+    @failed.setter
+    def failed(self, reason: str | None) -> None:
+        if reason is None:
+            _FAILURES.pop(self.model_name, None)
+        else:
+            _FAILURES[self.model_name] = reason
+
+    @property
+    def loaded(self) -> bool:
+        return self.model_name in _MODELS
 
     def supports(self, language: str | None) -> bool:
         return bool(language) and language in SUPPORTED_LANGUAGES and self.failed is None
@@ -74,8 +91,10 @@ class IndicConformerEngine:
         return str(output or "").strip()
 
     def describe(self) -> dict[str, object]:
-        return {
-            "model": self.model_name,
-            "decoder": self.decoder,
-            "status": f"disabled: {self.failed}" if self.failed else "ready",
-        }
+        if self.failed:
+            status = "failed"
+        elif self.loaded:
+            status = "loaded"
+        else:
+            status = "not_loaded"
+        return {"model": self.model_name, "decoder": self.decoder, "status": status, "error": self.failed}

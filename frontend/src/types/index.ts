@@ -277,6 +277,24 @@ export interface AiStatus {
   last_error?: { code: string; message: string; purpose?: string; cause?: string } | null
 }
 
+export interface SecondPassStatus {
+  model: string
+  decoder: string
+  status: 'loaded' | 'not_loaded' | 'failed'
+  error?: string | null
+}
+
+export interface AsrStatus {
+  name: string
+  mock: boolean
+  model?: string
+  device?: string
+  compute_type?: string
+  language_mode?: string
+  loaded?: boolean
+  second_pass?: SecondPassStatus | null
+}
+
 export interface SystemStatus {
   environment: string
   version: string
@@ -294,7 +312,7 @@ export interface SystemStatus {
     gemini_configured: boolean
   }
   providers: {
-    asr: { name: string; mock: boolean }
+    asr: AsrStatus
     diarization: { name: string; mock: boolean }
     terminology: Record<string, unknown>
     security: Record<string, unknown>

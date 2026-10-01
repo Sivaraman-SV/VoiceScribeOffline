@@ -425,6 +425,7 @@ class FasterWhisperProvider(ASRProvider):
             "compute_type": self.compute_type,
             "languages": list(self.languages) or "any",
             "language_mode": self.fixed_language or "per-utterance (code-switching)",
+            "loaded": any(key[0] == self.model_name for key in _MODELS),
             "second_pass": self.second_pass.describe() if self.second_pass else None,
         }
 

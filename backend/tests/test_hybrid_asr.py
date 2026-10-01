@@ -41,7 +41,7 @@ class FakeWhisper:
 
 class FakeConformer(IndicConformerEngine):
     def __init__(self, text: str = "", error: Exception | None = None) -> None:
-        super().__init__(model_name="fake-indic-conformer", decoder="ctc")
+        super().__init__(model_name=f"fake-indic-conformer-{id(self)}", decoder="ctc")
         self.text = text
         self.error = error
         self.calls: list[str] = []
@@ -119,6 +119,16 @@ def test_a_failing_second_recogniser_is_disabled_and_whisper_takes_over() -> Non
     assert conformer.failed == "onnxruntime missing"
     assert whisper.decoded_languages == ["hi", "hi"]
     assert len(segments) == 2
+
+
+def test_status_reports_whether_the_second_recogniser_really_loaded() -> None:
+    engine = FakeConformer("x")
+    assert engine.describe()["status"] == "not_loaded"
+    engine.failed = "401 gated repo"
+    assert IndicConformerEngine(model_name=engine.model_name, decoder="ctc").describe() == {
+        "model": engine.model_name, "decoder": "ctc", "status": "failed", "error": "401 gated repo",
+    }, "a failure is remembered for every later session"
+    engine.failed = None
 
 
 def test_english_only_mode_skips_language_detection_and_second_pass() -> None:

@@ -1,13 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mic, PlayCircle, Sparkles, Upload, Zap } from 'lucide-react'
+import { Mic, PlayCircle, Upload } from 'lucide-react'
 
+import { ActiveEngines } from '@/components/system/ActiveEngines'
 import { Panel, Spinner } from '@/components/ui/primitives'
 import { ENCOUNTER_TYPES } from '@/constants'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
-import type { SessionMode } from '@/types'
+import type { SessionMode, SystemStatus } from '@/types'
 import { cn } from '@/utils/cn'
 
 const MODES: { value: SessionMode; label: string; detail: string; icon: typeof Mic }[] = [
@@ -22,42 +23,6 @@ const MODES: { value: SessionMode; label: string; detail: string; icon: typeof M
     label: 'Upload Audio File',
     detail: 'Upload an audio file (.wav, .mp3, .m4a) of an encounter to generate notes in one pass.',
     icon: Upload,
-  },
-]
-
-export const ASR_ENGINES = [
-  {
-    id: 'faster_whisper',
-    name: 'Faster-Whisper (Large-v3)',
-    tag: 'OpenAI CTranslate2 · Medical Lexicon Biased',
-    detail: 'Sequence beam-search biased with 500+ Indian pharma brands, topicals & symptoms. High clinical vocabulary coverage.',
-    badge: 'Recommended',
-    speed: '~1.8s latency',
-  },
-  {
-    id: 'parakeet',
-    name: 'NVIDIA Parakeet (CTC 0.6B)',
-    tag: 'NVIDIA NeMo · FastConformer Non-Autoregressive',
-    detail: 'Zero autoregressive hallucination loops. Ultra-fast acoustic decoding, robust on noisy environments and clinical conversations.',
-    badge: 'Ultra Fast',
-    speed: '~300ms latency',
-  },
-]
-
-export const SOAP_MODELS = [
-  {
-    id: 'gemma2:9b',
-    name: 'Gemma 2 9B',
-    tag: 'Google DeepMind · SOTA Fast Clinical Scribe',
-    detail: '9.2B parameters. High diagnostic precision, fast single-pass inference (~20s), and clean structured SOAP documentation.',
-    badge: 'Fast & Mainstream',
-  },
-  {
-    id: 'gemma2:27b',
-    name: 'Gemma 2 27B',
-    tag: 'Google DeepMind · Flagship Clinical Intelligence',
-    detail: '27.2B parameters. Maximum medical reasoning depth, comprehensive multi-symptom synthesis, and advanced clinical differentials.',
-    badge: 'Maximum Accuracy',
   },
 ]
 
@@ -81,11 +46,14 @@ export function NewSessionPage() {
     : (identityName || 'Dr. A. Rao')
 
   const [form, setForm] = useState({ ...DEFAULTS, doctor_name: activeDoctorName })
-  const [selectedAsr, setSelectedAsr] = useState<string>('faster_whisper')
-  const [selectedModel, setSelectedModel] = useState<string>('gemma2:9b')
   const [mode, setMode] = useState<SessionMode>('MICROPHONE')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [status, setStatus] = useState<SystemStatus | null>(null)
+
+  useEffect(() => {
+    api.status().then(setStatus).catch(() => setStatus(null))
+  }, [])
 
   // Standard clinical encounters only (filtered from non-clinical presets)
   const clinicalEncounterTypes = useMemo(() => {
@@ -118,15 +86,13 @@ export function NewSessionPage() {
         faculty_name: null,
         mode,
         audio_source: audioSource,
-        model_name: selectedModel,
-        asr_provider: selectedAsr,
       })
       if (autoStart) {
         await api.startSession(session.id)
         pushToast({
           kind: 'success',
           title: `${session.reference} started`,
-          detail: `Live scribe active with ${selectedModel} & ${selectedAsr === 'parakeet' ? 'NVIDIA Parakeet' : 'Faster-Whisper'}.`,
+          detail: status ? `Note model: ${status.ai.model}` : undefined,
         })
       } else {
         pushToast({ kind: 'success', title: `${session.reference} created` })
@@ -148,7 +114,7 @@ export function NewSessionPage() {
             New Clinical Consultation
           </h1>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Configure patient details, select clinical AI model, and start ambient documentation.
+            Enter patient details and start ambient documentation.
           </p>
         </div>
 
@@ -210,89 +176,11 @@ export function NewSessionPage() {
           </div>
         </Panel>
 
-        {/* AI SOAP Model Selector */}
-        <Panel title="AI Clinical Scribe Engine (SOAP Analysis Model)" bodyClassName="grid gap-2.5 p-4 sm:grid-cols-3">
-          {SOAP_MODELS.map(({ id, name, tag, detail, badge }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSelectedModel(id)}
-              className={cn(
-                'flex flex-col justify-between rounded-xl border p-3.5 text-left transition relative overflow-hidden',
-                selectedModel === id
-                  ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/60 ring-1 ring-indigo-500/40 shadow-xs'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700',
-              )}
-              aria-pressed={selectedModel === id}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
-                    <Sparkles className={cn("h-3.5 w-3.5", selectedModel === id ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400")} />
-                    {name}
-                  </span>
-                  <span className={cn(
-                    "px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold tracking-wider",
-                    selectedModel === id
-                      ? "bg-indigo-600 text-white dark:bg-indigo-500"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                  )}>
-                    {badge}
-                  </span>
-                </div>
-                <div className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 mb-1">{tag}</div>
-                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{detail}</p>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-                <span className={selectedModel === id ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-slate-400"}>
-                  {selectedModel === id ? "● Active Engine" : "Select"}
-                </span>
-              </div>
-            </button>
-          ))}
-        </Panel>
-
-        {/* Speech-to-Text (ASR) Engine Selector */}
-        <Panel title="Speech-to-Text Engine (ASR Model)" bodyClassName="grid gap-2.5 p-4 sm:grid-cols-2">
-          {ASR_ENGINES.map(({ id, name, tag, detail, badge, speed }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setSelectedAsr(id)}
-              className={cn(
-                'flex flex-col justify-between rounded-xl border p-3.5 text-left transition relative overflow-hidden',
-                selectedAsr === id
-                  ? 'border-teal-500 bg-teal-50/80 dark:bg-teal-950/60 ring-1 ring-teal-500/40 shadow-xs'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700',
-              )}
-              aria-pressed={selectedAsr === id}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
-                    <Zap className={cn("h-3.5 w-3.5", selectedAsr === id ? "text-teal-600 dark:text-teal-400" : "text-slate-400")} />
-                    {name}
-                  </span>
-                  <span className={cn(
-                    "px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold tracking-wider",
-                    selectedAsr === id
-                      ? "bg-teal-600 text-white dark:bg-teal-500"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                  )}>
-                    {badge}
-                  </span>
-                </div>
-                <div className="text-[11px] font-medium text-teal-700 dark:text-teal-300 mb-1">{tag}</div>
-                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{detail}</p>
-              </div>
-              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
-                <span className={selectedAsr === id ? "text-teal-600 dark:text-teal-400 font-semibold" : "text-slate-400"}>
-                  {selectedAsr === id ? "● Active ASR" : "Select"}
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">{speed}</span>
-              </div>
-            </button>
-          ))}
+        <Panel title="AI engines on this server" bodyClassName="px-4 py-2">
+          <ActiveEngines status={status} />
+          <p className="pb-2 pt-1 text-[11px] text-slate-400 dark:text-slate-500">
+            Models are set in the server <code className="mono">.env</code> (the Kaggle runner), not per consultation.
+          </p>
         </Panel>
 
         {/* Audio Input Source */}

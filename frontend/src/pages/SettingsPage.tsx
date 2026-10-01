@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Cpu, Save, ShieldAlert, TestTube2, XCircle } from 'lucide-react'
 
+import { ActiveEngines } from '@/components/system/ActiveEngines'
 import { InlineAlert, Panel, Spinner, StatusDot } from '@/components/ui/primitives'
 import { api } from '@/services/api'
 import { useUiStore } from '@/store/uiStore'
@@ -95,8 +96,8 @@ export function SettingsPage() {
         </Panel>
 
         <Panel title="Pipeline" icon={<Cpu className="h-3.5 w-3.5" aria-hidden />} bodyClassName="space-y-3 p-4">
+          <ActiveEngines status={status} />
           <p className="text-xs text-navy-600">
-            Speech-to-text is Faster-Whisper. The SOAP note is Gemma 2 9B via Ollama on the configured LLM server.
             Invented medicines and diagnoses are dropped if they are not in the transcript.
           </p>
 
@@ -107,6 +108,9 @@ export function SettingsPage() {
               </li>
               <li>
                 <span className="font-semibold">2. Transcribe</span> — {status.pipeline.asr}
+                {status.pipeline.asr_second_pass && status.pipeline.asr_second_pass !== 'off'
+                  ? ` + ${status.pipeline.asr_second_pass}`
+                  : ''}
               </li>
               <li>
                 <span className="font-semibold">3. Speakers</span> — {status.pipeline.diarization}
@@ -167,13 +171,13 @@ export function SettingsPage() {
             title="ASR"
             name={status?.providers.asr.name ?? '—'}
             mock={Boolean(status?.providers.asr.mock)}
-            detail="Faster-Whisper large-v3-turbo (int8) on CPU. Multilingual. Audio never leaves this PC. Needs pip install -r requirements-asr.txt."
+            detail="Runs on the backend machine (your Kaggle GPU when using the runner). Details above."
           />
           <ProviderCard
             title="Diarization"
             name={status?.providers.diarization.name ?? '—'}
             mock={Boolean(status?.providers.diarization.mock)}
-            detail="Local two-speaker clustering on CPU. Do not enable pyannote on a 6 GB laptop."
+            detail="Two-speaker (doctor / patient) labelling from the transcript text."
           />
           <ProviderCard
             title="Terminology"
@@ -210,7 +214,7 @@ export function SettingsPage() {
         <InlineAlert kind="info" title="Privacy and scope">
           <ul className="mt-1 list-disc space-y-0.5 pl-4">
             <li>Never enter real patient data.</li>
-            <li>Audio and notes stay on this machine. Ollama and Whisper do not call the cloud.</li>
+            <li>Audio and notes stay on the backend machine (Kaggle, when using the runner). No third-party AI API is called.</li>
             <li>Every clinical statement must cite transcript evidence or it is dropped / flagged.</li>
             <li>Approval is always an explicit human action.</li>
           </ul>
