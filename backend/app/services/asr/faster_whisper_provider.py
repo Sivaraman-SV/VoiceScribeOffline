@@ -63,6 +63,22 @@ class FasterWhisperUnavailable(RuntimeError):
     pass
 
 
+def resolve_device(device: str | None, compute_type: str | None) -> tuple[str, str]:
+    """``auto`` becomes CUDA float16 when CTranslate2 sees a GPU, otherwise CPU int8."""
+    device = (device or "auto").lower().strip()
+    compute_type = (compute_type or "auto").lower().strip()
+    if device == "auto":
+        try:
+            import ctranslate2  # type: ignore import-not-found
+
+            device = "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+        except Exception:  # noqa: BLE001 - no CUDA runtime means CPU
+            device = "cpu"
+    if compute_type in ("auto", "default", ""):
+        compute_type = "float16" if device == "cuda" else "int8"
+    return device, compute_type
+
+
 def load_whisper_model(model_name: str, device: str, compute_type: str) -> tuple[Any, str, str]:
     """Return a shared ``WhisperModel`` and the device/compute type actually used."""
     try:
@@ -72,6 +88,7 @@ def load_whisper_model(model_name: str, device: str, compute_type: str) -> tuple
             "faster-whisper is not installed. Install requirements-asr.txt and set ASR_PROVIDER=faster_whisper."
         ) from exc
 
+    device, compute_type = resolve_device(device, compute_type)
     with _MODELS_LOCK:
         for key in ((model_name, device, compute_type), (model_name, "cpu", "int8")):
             if key in _MODELS:
@@ -147,8 +164,8 @@ class FasterWhisperProvider(ASRProvider):
         second_pass: IndicConformerEngine | None = None,
     ) -> None:
         self.model_name = model_name or settings.faster_whisper_model
-        self.device = device or getattr(settings, "asr_device", "auto")
-        self.compute_type = compute_type or getattr(settings, "asr_compute_type", "int8")
+        self.device = device or settings.asr_device
+        self.compute_type = compute_type or settings.asr_compute_type
         # An explicit prompt replaces the built-in code-mixed style prompts.
         # Never put drug names in it - Whisper copies prompt words into the output.
         self.prompt_override = (
@@ -164,7 +181,7 @@ class FasterWhisperProvider(ASRProvider):
         # conversation has been in.
         self.policy = LanguagePolicy(allowed=self.languages)
         self.second_pass = second_pass
-        if self.second_pass is None and getattr(settings, "asr_second_pass", "none") == "indic_conformer" and self._expects_indic():
+        if self.second_pass is None and settings.asr_second_pass == "indic_conformer" and self._expects_indic():
             self.second_pass = IndicConformerEngine()
         self._model: Any | None = None
 

@@ -143,6 +143,87 @@ CLINICAL_COLLOQUIALISMS: dict[str, str] = {
     "heart problem": "cardiac history (unspecified)",
 }
 
+# The same vocabulary in Tamil and Devanagari script, which is what Whisper
+# writes for Tamil and Hindi utterances. Matched as substrings so inflected
+# forms (தலைவலியா, बुखार से) still count.
+NATIVE_CLINICAL_TERMS: dict[str, str] = {
+    # Tamil
+    "தலைவலி": "headache",
+    "தலை வலி": "headache",
+    "காய்ச்சல்": "fever",
+    "ஜுரம்": "fever",
+    "இருமல்": "cough",
+    "சளி": "coryza / common cold",
+    "தொண்டை வலி": "sore throat",
+    "வயிற்று வலி": "abdominal pain",
+    "வயிறு வலி": "abdominal pain",
+    "வாந்தி": "vomiting",
+    "குமட்டல்": "nausea",
+    "வயிற்றுப்போக்கு": "diarrhoea",
+    "பேதி": "diarrhoea",
+    "மலச்சிக்கல்": "constipation",
+    "நெஞ்சு வலி": "chest pain",
+    "நெஞ்செரிச்சல்": "heartburn",
+    "மூச்சுத் திணறல்": "breathlessness",
+    "மூச்சு திணறல்": "breathlessness",
+    "தலைச்சுற்றல்": "giddiness / vertigo",
+    "மயக்கம்": "dizziness / giddiness",
+    "உடம்பு வலி": "body ache / myalgia",
+    "உடல் வலி": "body ache / myalgia",
+    "முதுகு வலி": "back pain",
+    "மூட்டு வலி": "joint pain",
+    "கால் வலி": "leg pain",
+    "சோர்வு": "fatigue / weakness",
+    "பசி இல்லை": "loss of appetite",
+    "தூக்கம் இல்லை": "insomnia",
+    "அரிப்பு": "itching",
+    "வீக்கம்": "swelling",
+    "சிறுநீர் எரிச்சல்": "dysuria",
+    "இரத்த அழுத்தம்": "blood pressure",
+    "ரத்த அழுத்தம்": "blood pressure",
+    "சர்க்கரை நோய்": "diabetes mellitus",
+    "ஒவ்வாமை": "allergy",
+    "பல் வலி": "toothache",
+    "காது வலி": "ear pain",
+    "கண் வலி": "eye pain",
+    # Hindi
+    "सिर दर्द": "headache",
+    "सिरदर्द": "headache",
+    "बुखार": "fever",
+    "खांसी": "cough",
+    "खाँसी": "cough",
+    "जुकाम": "coryza / common cold",
+    "ज़ुकाम": "coryza / common cold",
+    "गले में दर्द": "sore throat",
+    "गला खराब": "sore throat",
+    "पेट दर्द": "abdominal pain",
+    "पेट में दर्द": "abdominal pain",
+    "उल्टी": "vomiting",
+    "मतली": "nausea",
+    "जी मिचलाना": "nausea",
+    "दस्त": "diarrhoea",
+    "कब्ज": "constipation",
+    "सीने में दर्द": "chest pain",
+    "छाती में दर्द": "chest pain",
+    "सीने में जलन": "heartburn",
+    "सांस फूलना": "breathlessness",
+    "साँस फूलना": "breathlessness",
+    "चक्कर": "dizziness / vertigo",
+    "कमजोरी": "generalised weakness",
+    "कमज़ोरी": "generalised weakness",
+    "थकान": "fatigue",
+    "बदन दर्द": "body ache / myalgia",
+    "शरीर में दर्द": "body ache / myalgia",
+    "कमर दर्द": "low back pain",
+    "जोड़ों में दर्द": "joint pain",
+    "जोड़ों का दर्द": "joint pain",
+    "भूख नहीं": "loss of appetite",
+    "नींद नहीं": "insomnia",
+    "खुजली": "itching",
+    "सूजन": "swelling",
+    "पेशाब में जलन": "dysuria",
+}
+
 _COLLOQUIAL_RE = re.compile(
     r"\b(" + "|".join(re.escape(term) for term in sorted(CLINICAL_COLLOQUIALISMS, key=len, reverse=True)) + r")\b",
     re.IGNORECASE,
@@ -155,6 +236,9 @@ def colloquial_glossary(text: str) -> dict[str, str]:
     for match in _COLLOQUIAL_RE.finditer(text or ""):
         term = match.group(1).lower()
         found.setdefault(term, CLINICAL_COLLOQUIALISMS[term])
+    for term, english in NATIVE_CLINICAL_TERMS.items():
+        if term in (text or ""):
+            found.setdefault(term, english)
     return found
 
 

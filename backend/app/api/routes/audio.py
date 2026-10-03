@@ -45,7 +45,7 @@ async def ingest_chunk(session: SessionDep, payload: AudioChunkIngest, db: DbSes
         channels=payload.channels or settings.audio_channels,
         duration_seconds=payload.duration_seconds,
     )
-    segments = await _ingest(runtime, raw)
+    segments = await _ingest(runtime, raw, ai_update="background")
     return Acknowledgement(
         ok=True,
         message=f"Processed {len(data)} bytes.",
@@ -59,9 +59,15 @@ async def ingest_chunk(session: SessionDep, payload: AudioChunkIngest, db: DbSes
 
 @router.post("/{session_id}/audio/upload", response_model=Acknowledgement)
 async def upload_recording(
-    session: SessionDep, db: DbSession, file: UploadFile = File(...)
+    session: SessionDep, db: DbSession, file: UploadFile = File(...), final: bool = True
 ) -> Acknowledgement:
-    """Ingest a complete recording (WAV is decoded locally; other containers are forwarded)."""
+    """Ingest a recording (WAV is decoded locally; other containers are forwarded).
+
+    The live recorder streams a take as consecutive pieces with ``final=false``:
+    each is transcribed straight away and the note is drafted in the background.
+    The last piece (or a whole recording) uses ``final=true`` and waits for the
+    finished note.
+    """
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
@@ -74,8 +80,14 @@ async def upload_recording(
     if raw is None:  # pragma: no cover - provider always yields once
         raise HTTPException(status_code=400, detail="Could not read the uploaded recording.")
 
-    segments = await _ingest(runtime, raw)
-    if not segments:
+    segments = await _ingest(runtime, raw, ai_update="none" if final else "background")
+    if not final:
+        return Acknowledgement(
+            ok=True,
+            message=f"Transcribed {len(segments)} segment(s).",
+            detail={"segments": [segment.ref for segment in segments], "asr_provider": runtime.asr.name},
+        )
+    if not segments and runtime.segment_sequence == 0:
         # An empty transcript is reported honestly rather than as a success, so
         # the UI never implies speech was captured when none was recognised.
         return Acknowledgement(
@@ -87,8 +99,7 @@ async def upload_recording(
             detail={"segments": [], "asr_provider": runtime.asr.name, "bytes": len(data)},
         )
 
-    # Trigger clinical extraction & note synthesis immediately for the uploaded take
-    await pipeline.run_ai_update(runtime, force=True)
+    await pipeline.run_ai_update(runtime, force=True, final=True)
 
     return Acknowledgement(
         ok=True,
@@ -101,14 +112,14 @@ async def upload_recording(
     )
 
 
-async def _ingest(runtime, raw: RawAudio):
+async def _ingest(runtime, raw: RawAudio, *, ai_update: str = "inline"):
     """Run one buffer through the pipeline, mapping failures to clear HTTP errors.
 
     Transcription failures must never degrade to demo or placeholder content, so
     they surface as an error the clinician can act on.
     """
     try:
-        return await pipeline.ingest_audio(runtime, raw)
+        return await pipeline.ingest_audio(runtime, raw, ai_update=ai_update)
     except ASRUnavailable as exc:
         logger.error("audio_ingest_asr_unavailable", extra={"error": str(exc)})
         raise HTTPException(status_code=503, detail=str(exc)) from exc

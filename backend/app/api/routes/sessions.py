@@ -296,6 +296,7 @@ async def force_ai_update(session: SessionDep, db: DbSession) -> Acknowledgement
     runtime = await pipeline.ensure_runtime(session)
     runtime.ai_degraded = False
     runtime.last_ai_error = None
+    runtime.note_digest = None
     updated = await pipeline.run_ai_update(runtime, force=True)
     return Acknowledgement(
         ok=updated,

@@ -7,6 +7,12 @@ tunnelled out of a notebook during development.
 One inference pass returns the SOAP note *and* the entity list. The note is
 emitted first so that, when streaming, sections appear while the entity list is
 still being generated.
+
+Generation time is dominated by output tokens, so the model writes only the
+sections that were discussed, as plain strings, and entities without segment
+ids; provenance is computed locally from the transcript. The prompt keeps its
+fixed instructions first and the growing transcript next, so Ollama reuses the
+cached prefix between the updates of one consultation.
 """
 
 from __future__ import annotations
@@ -38,6 +44,7 @@ from app.services.llm.base import (
     PartialNoteCallback,
 )
 from app.services.llm.grounding import (
+    cite_entities,
     expand_clinical_text,
     filter_ungrounded_entities,
     purge_note_hallucinations,
@@ -84,11 +91,11 @@ RULES (all mandatory):
 1. Document only facts stated in the transcript. Never add a symptom, finding, vital sign, drug, dose, diagnosis, test or advice that no speaker said.
 2. The transcript may mix English with Hindi, Tamil or Telugu (Hinglish / Tanglish / Telugu-English) and contains Indian brand names. Translate every clinical fact into standard medical English. Keep brand names as spoken and add the generic in brackets only when certain, e.g. "Dolo 650 (paracetamol)".
 3. Lines are labelled Doctor / Patient. Patient statements are subjective history. assessment, plan and follow_up come ONLY from what the Doctor said.
-4. A section that was not discussed must be exactly "Not mentioned". In particular:
-   - physical_examination: "Not mentioned" unless examination findings or vital values were spoken.
-   - assessment: "Not mentioned" unless the doctor voiced an impression or diagnosis.
-   - plan: "Not mentioned" unless the doctor ordered a test, prescribed a medicine or gave advice. Never write a prescription the doctor did not say.
-   - follow_up: "Not mentioned" unless the doctor gave a review time.
+4. Leave out every section that was not discussed; it is recorded as "Not mentioned" automatically. In particular:
+   - physical_examination: only if examination findings or vital values were spoken.
+   - assessment: only if the doctor voiced an impression or diagnosis.
+   - plan: only if the doctor ordered a test, prescribed a medicine or gave advice. Never write a prescription the doctor did not say.
+   - follow_up: only if the doctor gave a review time.
 5. Record stated negatives explicitly, e.g. "Non-smoker. Denies alcohol use. No known drug allergies."
 6. Medicines the patient already took (including vague descriptions such as "a tablet for fever") belong in current_medication or treatment_history, in the patient's terms, never in plan.
 7. Where a speaker is uncertain, say so ("possibly", "patient unsure")."""
@@ -112,16 +119,16 @@ NOTE SECTIONS:
 - follow_up: review timing stated by the doctor."""
 
 _PROMPT_ENTITIES = """\
-ENTITIES: list every clinical item once, in English.
-entity_type is one of SYMPTOM, FINDING, MEDICATION, ALLERGY, DIAGNOSIS_MENTIONED, PROCEDURE, INVESTIGATION, DURATION, SEVERITY, FREQUENCY, CHARACTER, PLAN, FOLLOW_UP, MEDICAL_HISTORY.
+ENTITIES: list every clinical item once, in English, using the words of the transcript where possible.
+type is one of SYMPTOM, FINDING, MEDICATION, ALLERGY, DIAGNOSIS_MENTIONED, PROCEDURE, INVESTIGATION, MEDICAL_HISTORY.
 status is PRESENT, NEGATED (explicitly denied), UNCERTAIN or HISTORICAL.
-source_segment_ids are the [seg_...] ids of the lines that state the item."""
+Add "detail" only for a dose, frequency, duration or laterality that was stated."""
 
 _OUTPUT_SHAPE = (
-    '{"note": {'
-    + ", ".join(f'"{key}": {{"text": "...", "source_segment_ids": ["seg_..."]}}' for key in NOTE_KEYS)
-    + '}, "entities": [{"entity_type": "...", "value": "...", "status": "...", '
-    '"source_segment_ids": ["seg_..."], "detail": null}]}'
+    '{"note": {"chief_complaint": "...", "history_of_present_illness": "...", '
+    "<other discussed sections from the list above>}, "
+    '"entities": [{"type": "SYMPTOM", "value": "...", "status": "PRESENT"}, '
+    '{"type": "MEDICATION", "value": "...", "status": "PRESENT", "detail": "..."}]}'
 )
 
 
@@ -148,11 +155,15 @@ def build_single_pass_prompt(
     rule_hints: list[dict[str, Any]] | None = None,
 ) -> str:
     transcript = format_transcript(segments)
+    # Fixed text first, then the transcript, which only grows between updates:
+    # everything up to the newest line is served from the server's prompt cache.
     parts = [
         "Write the clinical note for this outpatient consultation and extract its clinical entities.",
         _PROMPT_RULES,
         _PROMPT_SECTIONS,
         _PROMPT_ENTITIES,
+        f"OUTPUT: exactly one JSON object, note first:\n{_OUTPUT_SHAPE}",
+        f"TRANSCRIPT:\n{transcript}",
     ]
 
     glossary = colloquial_glossary(transcript)
@@ -170,8 +181,7 @@ def build_single_pass_prompt(
     if hints:
         parts.append("Terms a rule engine spotted (verify against the transcript): " + "; ".join(hints))
 
-    parts.append(f"TRANSCRIPT:\n{transcript}")
-    parts.append(f"Return exactly one JSON object with the note first:\n{_OUTPUT_SHAPE}")
+    parts.append("Return the JSON object now.")
     return "\n\n".join(parts)
 
 
@@ -317,6 +327,8 @@ class LocalLLMProvider(LLMProvider):
                     "temperature": self.temperature,
                 },
             }
+            if "gemma4" in model.lower():
+                payload["think"] = settings.local_llm_think
             return f"{self._ollama_root}/api/chat", payload
         return f"{self.base_url}/chat/completions", {
             "model": model,
@@ -516,6 +528,7 @@ class LocalLLMProvider(LLMProvider):
         coerced = coerce_llm_payload(parsed_json, ExtractionResult)
         result = ExtractionResult.model_validate(coerced)
         segment_texts = {str(s.get("ref", "")): str(s.get("text", "")) for s in clean_segments}
+        cite_entities(result.entities, segment_texts)
         kept, dropped = filter_ungrounded_entities(
             result.entities,
             segment_texts=segment_texts,

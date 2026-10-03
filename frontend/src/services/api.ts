@@ -171,13 +171,15 @@ export const api = {
       `/sessions/${sessionId}/audio/chunk`,
       { method: 'POST', body: JSON.stringify(payload) },
     ),
-  uploadRecording: async (sessionId: string, file: File) => {
+  /** `final: false` streams one piece of a live take; the note is drafted in the background. */
+  uploadRecording: async (sessionId: string, file: File, options: { final?: boolean } = {}) => {
     const form = new FormData()
     form.append('file', file)
     const authHeaders: Record<string, string> = {}
     if (identity.email) authHeaders['X-User-Email'] = identity.email
     if (identity.role) authHeaders['X-User-Role'] = identity.role
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/audio/upload`, {
+    const final = options.final ?? true
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}/audio/upload?final=${final}`, {
       method: 'POST',
       body: form,
       headers: authHeaders,

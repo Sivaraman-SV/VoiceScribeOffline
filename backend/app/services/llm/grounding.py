@@ -12,7 +12,7 @@ import re
 from typing import Any, Iterable
 
 from app.models.enums import EntityType
-from app.services.asr.code_switch import CLINICAL_COLLOQUIALISMS
+from app.services.asr.code_switch import CLINICAL_COLLOQUIALISMS, NATIVE_CLINICAL_TERMS
 from app.services.asr.medical_lexicon import PHARMACEUTICAL_DIRECTORY
 from app.services.llm.schemas import ExtractedEntity, GeneratedNote, NoteUpdate
 from app.services.nlp.terminology import _SYNONYMS
@@ -125,7 +125,7 @@ _INVENTED_DIAGNOSIS_MARKERS = tuple(_DIAGNOSIS_SYMPTOM_SUPPORT.keys())
 # "chakkar" -> ("dizziness", "vertigo"): every alternative counts as a translation.
 _COLLOQUIAL_OPTIONS: dict[str, tuple[str, ...]] = {
     phrase: tuple(option.strip().lower() for option in english.split("/") if option.strip())
-    for phrase, english in CLINICAL_COLLOQUIALISMS.items()
+    for phrase, english in {**CLINICAL_COLLOQUIALISMS, **NATIVE_CLINICAL_TERMS}.items()
 }
 
 
@@ -160,11 +160,13 @@ def is_grounded(value: str, cited_text: str) -> bool:
     Only the transcript is synonym-expanded. Expanding the claim as well would
     let "viral fever / typhoid" match a transcript that only said "bukhar".
     """
+    return _grounded_in(value, expand_clinical_text(cited_text or ""))
+
+
+def _grounded_in(value: str, haystack: str) -> bool:
     value = (value or "").strip()
-    cited = cited_text or ""
     if not value:
         return False
-    haystack = expand_clinical_text(cited)
     value_l = value.lower()
     if not haystack:
         return False
@@ -181,6 +183,19 @@ def is_grounded(value: str, cited_text: str) -> bool:
         return bool(short) and all(tok in haystack for tok in short)
     matched = sum(1 for tok in tokens if tok in haystack)
     return matched / len(tokens) >= 0.5
+
+
+def cite_entities(entities: list[ExtractedEntity], segment_texts: dict[str, str], limit: int = 4) -> None:
+    """Fill ``source_segment_ids`` for entities the model returned without them."""
+    expanded: dict[str, str] | None = None
+    for entity in entities:
+        if entity.source_segment_ids:
+            continue
+        if expanded is None:
+            expanded = {ref: expand_clinical_text(text) for ref, text in segment_texts.items()}
+        entity.source_segment_ids = [
+            ref for ref, haystack in expanded.items() if _grounded_in(entity.value, haystack)
+        ][:limit]
 
 
 def transcript_blob(segments: Iterable[dict[str, Any]]) -> str:

@@ -136,6 +136,11 @@ class SessionRuntime:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     resume_event: asyncio.Event = field(default_factory=asyncio.Event)
     latencies: dict[str, list[float]] = field(default_factory=lambda: {"note": [], "extraction": []})
+    # Transcript the current note was generated from; an unchanged transcript
+    # needs no new LLM pass.
+    note_digest: int | None = None
+    ai_task: asyncio.Task | None = None
+    ai_rerun: bool = False
 
     def __post_init__(self) -> None:
         self.resume_event.set()
@@ -280,7 +285,9 @@ class SessionPipeline:
         await self._emit_stage(runtime, ProcessingStage.IDLE, "Session ended - ready for review")
 
     def discard(self, session_id: str) -> None:
-        self._runtimes.pop(str(session_id), None)
+        runtime = self._runtimes.pop(str(session_id), None)
+        if runtime is not None and runtime.ai_task and not runtime.ai_task.done():
+            runtime.ai_task.cancel()
 
     # ------------------------------------------------------------------ ingest
     async def ingest_audio(
@@ -289,8 +296,14 @@ class SessionPipeline:
         raw: RawAudio,
         *,
         hints: dict[str, Any] | None = None,
+        ai_update: str = "inline",
     ) -> list[AssembledSegment]:
-        """Run one audio buffer through the full pipeline."""
+        """Run one audio buffer through the full pipeline.
+
+        ``ai_update`` is ``inline`` (wait for the batched LLM update),
+        ``background`` (schedule it and return as soon as the transcript is
+        stored, so live audio pieces never queue behind the LLM) or ``none``.
+        """
         session_id_var.set(runtime.session_id)
         async with runtime.lock:
             runtime.chunk_sequence += 1
@@ -363,7 +376,7 @@ class SessionPipeline:
 
         turns = await self._diarize(runtime, frame)
 
-        return await self._assemble_and_store(runtime, frame, asr_segments, turns, chunk_id)
+        return await self._assemble_and_store(runtime, frame, asr_segments, turns, chunk_id, ai_update)
 
     async def _diarize(self, runtime: SessionRuntime, frame: AudioFrame) -> list:
         await self._emit_stage(runtime, ProcessingStage.DIARIZATION, "Detecting speakers")
@@ -414,6 +427,7 @@ class SessionPipeline:
         asr_segments: list,
         turns: list,
         chunk_id: uuid.UUID,
+        ai_update: str = "inline",
     ) -> list[AssembledSegment]:
         await self._emit_stage(runtime, ProcessingStage.TRANSCRIPT_ASSEMBLY, "Assembling transcript")
         factory = get_session_factory()
@@ -549,7 +563,13 @@ class SessionPipeline:
                 },
             )
 
-        ai_ran = await self.maybe_run_ai_update(runtime)
+        if ai_update == "background":
+            self.schedule_ai_update(runtime)
+            ai_ran = False
+        elif ai_update == "inline":
+            ai_ran = await self.maybe_run_ai_update(runtime)
+        else:
+            ai_ran = False
         if not ai_ran:
             await self._emit_stage(
                 runtime,
@@ -568,9 +588,43 @@ class SessionPipeline:
             return False
         return await self.run_ai_update(runtime)
 
+    def schedule_ai_update(self, runtime: SessionRuntime) -> None:
+        """Batched LLM update off the request path; at most one runs per session."""
+        if runtime.ai_task and not runtime.ai_task.done():
+            runtime.ai_rerun = True
+            return
+        runtime.ai_task = asyncio.create_task(self._background_ai(runtime), name=f"ai-{runtime.reference}")
+
+    async def _background_ai(self, runtime: SessionRuntime) -> None:
+        session_id_var.set(runtime.session_id)
+        try:
+            while True:
+                runtime.ai_rerun = False
+                await self.maybe_run_ai_update(runtime)
+                if not runtime.ai_rerun or runtime.stopped:
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - a background draft must never kill the session
+            logger.exception("background_ai_update_failed", extra={"session_id": runtime.session_id})
+
+    async def _cancel_background_ai(self, runtime: SessionRuntime) -> None:
+        """A forced pass supersedes a draft still generating from an older transcript."""
+        task = runtime.ai_task
+        if task is None or task.done() or task is asyncio.current_task():
+            return
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001 - task teardown
+            pass
+        runtime.ai_rerun = False
+
     async def run_ai_update(
         self, runtime: SessionRuntime, *, force: bool = False, final: bool = False
     ) -> bool:
+        if force:
+            await self._cancel_background_ai(runtime)
         async with runtime.lock:
             if runtime.pending_segments == 0 and not force:
                 return False
@@ -607,6 +661,18 @@ class SessionPipeline:
                 "elapsed_seconds": round(repo.session_duration(session), 1),
             }
             await db.commit()
+
+        digest = hash(
+            tuple((item["ref"], item["speaker_label"], item["role"], item["text"]) for item in prompt_segments)
+        )
+        if digest == runtime.note_digest and not runtime.ai_degraded:
+            # The note already reflects exactly this transcript.
+            await self._emit_stage(
+                runtime,
+                ProcessingStage.AUDIO_CAPTURE if not runtime.stopped else ProcessingStage.IDLE,
+                "Ready",
+            )
+            return True
 
         assembled = [
             AssembledSegment(
@@ -742,6 +808,7 @@ class SessionPipeline:
 
         await self._emit_stage(runtime, ProcessingStage.NOTE_STATE, "Updating clinical note")
         await self._persist_note(runtime, note_id, outcome, note_provider, final=final)
+        runtime.note_digest = digest if note_provider is runtime.llm and not runtime.ai_degraded else None
         await self._emit_stage(
             runtime,
             ProcessingStage.AUDIO_CAPTURE if not runtime.stopped else ProcessingStage.IDLE,

@@ -16,13 +16,18 @@ from app.services.llm.schemas import ExtractionResult, NoteUpdate, coerce_llm_pa
 from app.services.types import AudioFrame
 
 
-def test_offline_defaults_target_gpu_server() -> None:
+def test_offline_defaults_run_on_gpu_or_cpu() -> None:
     fields = Settings.model_fields
     assert fields["asr_provider"].default is ASRProviderName.FASTER_WHISPER
     assert fields["faster_whisper_model"].default == "large-v3-turbo"
-    assert fields["local_llm_model"].default in ("gemma4:12b", "gemma2:9b")
-    assert fields["asr_device"].default == "cuda"
-    assert fields["asr_compute_type"].default == "float16"
+    assert fields["local_llm_model"].default == "gemma4:e4b"
+    assert fields["local_llm_fallback_models"].default == "gemma4:e2b"
+    assert fields["local_llm_think"].default is False
+    assert fields["asr_device"].default == "auto"
+    assert fields["asr_compute_type"].default == "auto"
+    assert fields["asr_languages"].default == "ta,hi,en"
+    assert fields["indic_asr_language"].default == "code_switching"
+    assert fields["indic_asr_prompt_biasing"].default == ""
     assert fields["asr_beam_size"].default == 2
     assert fields["asr_num_workers"].default == 2
     assert fields["indic_whisper_use_transformers"].default is False

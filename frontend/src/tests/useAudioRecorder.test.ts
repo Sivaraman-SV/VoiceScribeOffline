@@ -10,6 +10,7 @@ import {
   describeMicrophoneError,
   downsample,
   encodeWav,
+  findPieceCut,
   useAudioRecorder,
 } from '@/hooks/useAudioRecorder'
 import { api } from '@/services/api'
@@ -73,13 +74,13 @@ function stopTracker() {
   return { stopped, stream }
 }
 
-/** Feeds `seconds` of loud audio through the capture graph. */
-function speak(seconds: number) {
+/** Feeds `seconds` of loud audio (or silence) through the capture graph. */
+function speak(seconds: number, amplitude = 0.5) {
   const context = FakeAudioContext.lastInstance
   if (!context?.processor?.onaudioprocess) throw new Error('capture graph not started')
   const blockSize = 4096
   const blocks = Math.ceil((seconds * context.sampleRate) / blockSize)
-  const block = new Float32Array(blockSize).fill(0.5)
+  const block = new Float32Array(blockSize).fill(amplitude)
   for (let i = 0; i < blocks; i += 1) {
     context.processor.onaudioprocess({ inputBuffer: { getChannelData: () => block } })
   }
@@ -123,6 +124,23 @@ describe('WAV encoding', () => {
     const output = downsample(input, 48000, 16000)
     expect(output.length).toBe(16000)
     expect(output[0]).toBeCloseTo(0.25, 5)
+  })
+})
+
+describe('piece cutting', () => {
+  it('cuts at the pause rather than mid-speech', () => {
+    const rate = 16000
+    const samples = new Float32Array(20 * rate).fill(0.5)
+    samples.fill(0, 12 * rate, 13 * rate)
+    const cut = findPieceCut(samples, rate, 8)
+    expect(cut.silent).toBe(true)
+    expect(cut.index / rate).toBeGreaterThanOrEqual(12)
+    expect(cut.index / rate).toBeLessThanOrEqual(13)
+  })
+
+  it('reports continuous speech as having no silent cut point', () => {
+    const rate = 16000
+    expect(findPieceCut(new Float32Array(20 * rate).fill(0.5), rate, 8).silent).toBe(false)
   })
 })
 
@@ -177,6 +195,61 @@ describe('useAudioRecorder', () => {
     // The microphone is released once the take is finished.
     expect(stopped.count).toBe(1)
     expect(FakeAudioContext.lastInstance?.closed).toBe(true)
+  })
+
+  it('streams pieces while recording so Stop only sends the remainder', async () => {
+    const { stream } = stopTracker()
+    getUserMedia.mockResolvedValue(stream)
+    const upload = vi
+      .spyOn(api, 'uploadRecording')
+      .mockResolvedValue({ ok: true, message: 'Transcribed.', detail: {} })
+
+    const { result } = renderHook(() => useAudioRecorder(SESSION_ID))
+    await act(async () => {
+      await result.current.start()
+    })
+    await act(async () => {
+      speak(12)
+      speak(1, 0)
+      speak(5)
+    })
+
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(1))
+    expect(upload.mock.calls[0][2]).toEqual({ final: false })
+    const piece = upload.mock.calls[0][1] as File
+    // Cut inside the pause: about 12-13 s of 16 kHz PCM16.
+    expect(piece.size).toBeGreaterThan(12 * 16000 * 2 * 0.95)
+    expect(piece.size).toBeLessThan(13.5 * 16000 * 2)
+
+    await act(async () => {
+      await result.current.stop()
+    })
+    expect(upload).toHaveBeenCalledTimes(2)
+    expect(upload.mock.calls[1][2]).toEqual({ final: true })
+    expect(result.current.state).toBe('idle')
+  })
+
+  it('reports a failed piece at Stop instead of sending the rest', async () => {
+    const { stream } = stopTracker()
+    getUserMedia.mockResolvedValue(stream)
+    const upload = vi
+      .spyOn(api, 'uploadRecording')
+      .mockRejectedValue(new Error('Audio could not be transcribed: CUDA out of memory'))
+
+    const { result } = renderHook(() => useAudioRecorder(SESSION_ID))
+    await act(async () => {
+      await result.current.start()
+    })
+    await act(async () => {
+      speak(26)
+    })
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    expect(upload).toHaveBeenCalledTimes(1)
+    expect(result.current.state).toBe('error')
+    expect(result.current.error).toMatch(/CUDA out of memory/)
   })
 
   it('reports denied permission and uploads nothing', async () => {

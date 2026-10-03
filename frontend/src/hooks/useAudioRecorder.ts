@@ -1,8 +1,10 @@
 /**
  * Browser microphone recording for a live session.
  *
- * Captures the whole take, then uploads the real recorded audio to the backend
- * when the clinician presses Stop. There is no demo or placeholder path here: if
+ * While recording, the take is cut at natural pauses into pieces of roughly
+ * 15 seconds that are uploaded one after another, so the server transcribes and
+ * drafts the note during the consultation. Stop uploads only the remainder and
+ * waits for the finished note. There is no demo or placeholder path here: if
  * permission is refused, the device fails, or the upload/transcription fails,
  * the error is reported and no transcript is produced.
  *
@@ -19,8 +21,17 @@ import { api } from '@/services/api'
 import { useUiStore } from '@/store/uiStore'
 
 const TARGET_SAMPLE_RATE = 16000
-const MAX_RECORDING_SECONDS = 15 * 60
+const MAX_RECORDING_SECONDS = 30 * 60
 const MIN_RECORDING_SECONDS = 0.4
+// A piece is cut at the quietest point after PIECE_MIN_SECONDS once it is
+// PIECE_TARGET_SECONDS long and that point is silent, or at PIECE_MAX_SECONDS
+// regardless, so a word is never split unless nobody pauses for 25 seconds.
+const PIECE_TARGET_SECONDS = 15
+const PIECE_MIN_SECONDS = 8
+const PIECE_MAX_SECONDS = 25
+const PIECE_CHECK_SECONDS = 1
+const SILENCE_RMS = 0.01
+const CUT_FRAME_SECONDS = 0.25
 
 export type RecorderState = 'idle' | 'requesting' | 'recording' | 'uploading' | 'error'
 
@@ -82,6 +93,41 @@ export function downsample(input: Float32Array, fromRate: number, toRate: number
   return output
 }
 
+/**
+ * Sample index of the quietest frame between `minSeconds` and the end (later
+ * frames win ties), and whether that frame is silence.
+ */
+export function findPieceCut(
+  samples: Float32Array,
+  sampleRate: number,
+  minSeconds: number,
+): { index: number; silent: boolean } {
+  const frame = Math.max(1, Math.round(CUT_FRAME_SECONDS * sampleRate))
+  const first = Math.round(minSeconds * sampleRate)
+  let bestIndex = samples.length
+  let bestRms = Number.POSITIVE_INFINITY
+  for (let start = first; start + frame <= samples.length - frame; start += frame) {
+    let sum = 0
+    for (let i = start; i < start + frame; i += 1) sum += samples[i] * samples[i]
+    const rms = Math.sqrt(sum / frame)
+    if (rms <= bestRms) {
+      bestRms = rms
+      bestIndex = start + Math.floor(frame / 2)
+    }
+  }
+  return { index: bestIndex, silent: bestRms < SILENCE_RMS }
+}
+
+function mergeChunks(chunks: Float32Array[], total: number): Float32Array {
+  const merged = new Float32Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    merged.set(chunk, offset)
+    offset += chunk.length
+  }
+  return merged
+}
+
 /** Turns getUserMedia failures into something a clinician can act on. */
 export function describeMicrophoneError(error: unknown): string {
   const name = (error as DOMException | undefined)?.name
@@ -122,6 +168,12 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
   const captureRateRef = useRef(TARGET_SAMPLE_RATE)
   const timerRef = useRef<number | null>(null)
   const autoStopRef = useRef<(() => void) | null>(null)
+  // chunksRef/sampleCountRef hold only the audio not yet sent as a piece.
+  const totalSamplesRef = useRef(0)
+  const nextCheckRef = useRef(PIECE_TARGET_SECONDS)
+  const queueRef = useRef<Promise<void>>(Promise.resolve())
+  const pieceErrorRef = useRef<Error | null>(null)
+  const cancelledRef = useRef(false)
 
   /** Releases the microphone and tears down the audio graph. */
   const release = useCallback(() => {
@@ -151,18 +203,45 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
     sampleCountRef.current = 0
     if (!total) return null
 
-    const merged = new Float32Array(total)
-    let offset = 0
-    for (const chunk of chunks) {
-      merged.set(chunk, offset)
-      offset += chunk.length
-    }
-    const resampled = downsample(merged, captureRateRef.current, TARGET_SAMPLE_RATE)
+    const resampled = downsample(mergeChunks(chunks, total), captureRateRef.current, TARGET_SAMPLE_RATE)
     return {
       wav: encodeWav(resampled, TARGET_SAMPLE_RATE),
       duration: resampled.length / TARGET_SAMPLE_RATE,
     }
   }, [])
+
+  /** Uploads one piece after the previous ones, so the server sees them in order. */
+  const sendPiece = useCallback(
+    (samples: Float32Array) => {
+      if (!sessionId) return
+      const file = new File([encodeWav(samples, TARGET_SAMPLE_RATE)], `piece-${Date.now()}.wav`, {
+        type: 'audio/wav',
+      })
+      queueRef.current = queueRef.current.then(async () => {
+        if (cancelledRef.current || pieceErrorRef.current) return
+        try {
+          await api.uploadRecording(sessionId, file, { final: false })
+        } catch (err) {
+          pieceErrorRef.current = err as Error
+        }
+      })
+    },
+    [sessionId],
+  )
+
+  const cutPiece = useCallback(() => {
+    const rate = captureRateRef.current
+    const seconds = sampleCountRef.current / rate
+    if (seconds < PIECE_TARGET_SECONDS) return
+    const merged = mergeChunks(chunksRef.current, sampleCountRef.current)
+    const { index, silent } = findPieceCut(merged, rate, PIECE_MIN_SECONDS)
+    if (!silent && seconds < PIECE_MAX_SECONDS) return
+    const tail = merged.slice(index)
+    chunksRef.current = [tail]
+    sampleCountRef.current = tail.length
+    nextCheckRef.current = PIECE_TARGET_SECONDS
+    sendPiece(downsample(merged.subarray(0, index), rate, TARGET_SAMPLE_RATE))
+  }, [sendPiece])
 
   const fail = useCallback(
     (title: string, message: string) => {
@@ -179,6 +258,11 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
     setSeconds(0)
     chunksRef.current = []
     sampleCountRef.current = 0
+    totalSamplesRef.current = 0
+    nextCheckRef.current = PIECE_TARGET_SECONDS
+    queueRef.current = Promise.resolve()
+    pieceErrorRef.current = null
+    cancelledRef.current = false
     setState('requesting')
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -216,12 +300,17 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
         const input = event.inputBuffer.getChannelData(0)
         chunksRef.current.push(new Float32Array(input))
         sampleCountRef.current += input.length
+        totalSamplesRef.current += input.length
 
         let peak = 0
         for (let i = 0; i < input.length; i += 16) peak = Math.max(peak, Math.abs(input[i]))
         setLevel(peak)
 
-        if (sampleCountRef.current / captureRateRef.current >= MAX_RECORDING_SECONDS) {
+        if (sampleCountRef.current / captureRateRef.current >= nextCheckRef.current) {
+          nextCheckRef.current += PIECE_CHECK_SECONDS
+          cutPiece()
+        }
+        if (totalSamplesRef.current / captureRateRef.current >= MAX_RECORDING_SECONDS) {
           autoStopRef.current?.()
         }
       }
@@ -241,17 +330,17 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
       pushToast({
         kind: 'success',
         title: 'Recording',
-        detail: 'Speak normally. Press Stop when the encounter is finished to transcribe it.',
+        detail: 'Speak normally. The transcript builds while you talk; press Stop for the finished note.',
       })
     } catch (err) {
       release()
       fail('Microphone unavailable', describeMicrophoneError(err))
     }
-  }, [fail, pushToast, release, sessionId, state])
+  }, [cutPiece, fail, pushToast, release, sessionId, state])
 
   const stop = useCallback(async () => {
     if (!sessionId || state !== 'recording') return
-    const elapsed = sampleCountRef.current / captureRateRef.current
+    const elapsed = totalSamplesRef.current / captureRateRef.current
     release()
 
     const recorded = takeRecordedAudio()
@@ -265,8 +354,10 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
 
     setState('uploading')
     try {
+      await queueRef.current
+      if (pieceErrorRef.current) throw pieceErrorRef.current
       const file = new File([recorded.wav], `recording-${Date.now()}.wav`, { type: 'audio/wav' })
-      const result = await api.uploadRecording(sessionId, file)
+      const result = await api.uploadRecording(sessionId, file, { final: true })
       if (!result.ok) {
         // The backend recognised no speech. Reported as-is; never backfilled.
         fail('No speech recognised', result.message ?? 'No speech was recognised in the recording.')
@@ -285,6 +376,7 @@ export function useAudioRecorder(sessionId: string | null): AudioRecorder {
   }, [fail, pushToast, release, sessionId, state, takeRecordedAudio])
 
   const cancel = useCallback(() => {
+    cancelledRef.current = true
     release()
     chunksRef.current = []
     sampleCountRef.current = 0
