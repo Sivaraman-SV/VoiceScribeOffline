@@ -6,9 +6,9 @@ echo.
 echo ==============================================================================
 echo   VoiceScribe Offline  -  one file, first-time setup on a friend's PC
 echo ==============================================================================
-echo   This installs Python, Node.js, Ollama, Qwen 2.5 7B, CPU Whisper, then
+echo   This installs Python, Node.js, Ollama, Gemma 4, CPU Whisper, then
 echo   starts the app. You do NOT install CUDA Toolkit or PyTorch.
-echo   First run can take 15-40 minutes (Qwen 7B is about 4.7 GB).
+echo   First run can take 15-40 minutes (Gemma 4 models are several GB).
 echo ==============================================================================
 echo.
 

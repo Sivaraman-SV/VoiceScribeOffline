@@ -20,10 +20,10 @@ The product is organised around one principle: **Evidence First**. Every clinica
 
 ```
 Audio (16 kHz WAV) → Faster-Whisper large-v3-turbo int8 (CPU)
-                  → Qwen 2.5 7B (Ollama, GPU) → grounding (drop invented meds/diagnoses) → note
+                  → Gemma 4 E4B (Ollama, GPU) → grounding (drop invented meds/diagnoses) → note
 ```
 
-See [`OFFLINE_SETUP_GUIDE.md`](OFFLINE_SETUP_GUIDE.md) for VRAM budget and why Gemma 9B / IndicWhisper-medium are not the default.
+See [`OFFLINE_SETUP_GUIDE.md`](OFFLINE_SETUP_GUIDE.md) for the VRAM budget and the full `.env` reference.
 
 ```
 Clinical note → clinical statement → evidence reference → transcript segment → speaker → timestamp → audio chunk
@@ -69,7 +69,8 @@ What you can do in the running application:
                   │ CLINICAL NLP     │  entities, negation, uncertainty, normalisation
                   └────────┬─────────┘
                   ┌────────▼─────────┐
-                  │ GEMINI API       │  schema-constrained structured JSON
+                  │ LOCAL LLM        │  Gemma 4 via Ollama (Gemini optional),
+                  │                  │  schema-constrained structured JSON
                   └────────┬─────────┘
                   ┌────────▼─────────┐
                   │ EVIDENCE LINKING │  statement → segment → speaker → time
@@ -84,7 +85,7 @@ What you can do in the running application:
                   └───────────────────────────────┘
 ```
 
-The rule-based clinical NLP layer runs **before** the LLM and is also used **after** it: extracted candidates are passed to Gemini as grounding, and Gemini's output is validated against them (a rule-detected negation overrides an LLM `PRESENT` status). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detail.
+The rule-based clinical NLP layer runs **before** the LLM and is also used **after** it: extracted candidates are passed to the LLM as grounding, and the LLM's output is validated against them (a rule-detected negation overrides an LLM `PRESENT` status). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detail.
 
 ---
 
@@ -95,7 +96,7 @@ The rule-based clinical NLP layer runs **before** the LLM and is also used **aft
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, Zustand, React Router, Recharts, Lucide |
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, Uvicorn, WebSockets |
 | Database | PostgreSQL 16 (SQLite fallback for local development) |
-| AI | Offline: Qwen 2.5 7B via Ollama. Optional Google Gemini via `google-genai` |
+| AI | Offline: Gemma 4 (E4B default, E2B fallback, 12B quality tier) via Ollama. Optional Google Gemini via `google-genai` |
 | ASR / diarization | Faster-Whisper `large-v3-turbo` int8 + local speaker clustering (pyannote optional, not for 6 GB GPUs) |
 | Export | JSON, PDF (ReportLab), FHIR R4-shaped JSON bundle |
 | Tests | pytest + pytest-asyncio (backend), Vitest + Testing Library (frontend) |
@@ -112,7 +113,7 @@ That installer is the full A-to-Z path:
 2. Node.js LTS
 3. Visual C++ runtime (needed by Whisper)
 4. Ollama
-5. `ollama pull qwen2.5:7b`
+5. `ollama pull` the models in `LOCAL_LLM_MODEL` + `LOCAL_LLM_FALLBACK_MODELS` (default `gemma4:e4b`, `gemma4:e2b`)
 6. backend `.venv` + `pip install -r requirements.txt` (CPU Faster-Whisper, **not** PyTorch/CUDA)
 7. `npm install` in `frontend/`
 8. Launch http://127.0.0.1:5173

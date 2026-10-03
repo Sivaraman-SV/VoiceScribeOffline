@@ -3,10 +3,11 @@
   A-to-Z first-run installer for VoiceScribe Offline on a friend's Windows laptop.
 
   Installs (if missing): Python 3.12, Node.js LTS, Ollama, VC++ runtime,
-  backend venv, Faster-Whisper (CPU), Qwen 2.5 7B, frontend npm packages.
+  backend venv, Faster-Whisper (CPU), the Gemma 4 note models named in .env
+  (LOCAL_LLM_MODEL + LOCAL_LLM_FALLBACK_MODELS), frontend npm packages.
   Then launches the app.
 
-  Whisper stays on CPU. Ollama/Qwen uses the NVIDIA GPU. No CUDA Toolkit,
+  Whisper stays on CPU. Ollama/Gemma uses the NVIDIA GPU. No CUDA Toolkit,
   no PyTorch, no pyannote.
 #>
 [CmdletBinding()]
@@ -51,6 +52,17 @@ function Refresh-Path {
     $env:Path = "$machine;$user"
 }
 
+# Reads KEY=value from .env (falling back to .env.example) so the models pulled
+# here are always the ones the backend will ask Ollama for.
+function Get-EnvSetting($key, $default) {
+    foreach ($file in @((Join-Path $RepoRoot ".env"), (Join-Path $RepoRoot ".env.example"))) {
+        if (-not (Test-Path $file)) { continue }
+        $line = Get-Content $file | Where-Object { $_ -match "^\s*$key\s*=" } | Select-Object -First 1
+        if ($line) { return ($line -split "=", 2)[1].Trim() }
+    }
+    return $default
+}
+
 function Test-Cmd($name) {
     return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
@@ -83,7 +95,7 @@ function Install-Exe($url, $args, $outName) {
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "  VoiceScribe Offline  |  A-to-Z installer for a friend's Windows PC" -ForegroundColor Cyan
-Write-Host "  Python + Node + Ollama + Qwen 2.5 7B + CPU Whisper + app launch" -ForegroundColor Cyan
+Write-Host "  Python + Node + Ollama + Gemma 4 + CPU Whisper + app launch" -ForegroundColor Cyan
 Write-Host "  No CUDA Toolkit. No PyTorch. GPU is used only by Ollama." -ForegroundColor Cyan
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "  Folder: $RepoRoot"
@@ -155,7 +167,7 @@ if (-not (Test-Cmd "npm")) {
 Write-Ok "node $(node --version) / npm $(npm --version)"
 
 # --- 4. Ollama --------------------------------------------------------------
-Write-Step 4 8 "Ollama (runs Qwen 2.5 7B on the GPU)"
+Write-Step 4 8 "Ollama (runs the Gemma 4 note model on the GPU)"
 Refresh-Path
 if (-not (Test-Cmd "ollama")) {
     $ok = Install-Winget "Ollama.Ollama"
@@ -183,16 +195,22 @@ if (-not $ollamaUp) {
 }
 Write-Ok "Ollama is reachable on port 11434"
 
-Write-Host "  Pulling qwen2.5:7b (about 4.7 GB, first time only)..."
-& ollama pull qwen2.5:7b
-if ($LASTEXITCODE -ne 0) {
-    Write-Warn "ollama pull returned $LASTEXITCODE. You can rerun: ollama pull qwen2.5:7b"
-} else {
-    Write-Ok "qwen2.5:7b is installed"
+$primaryModel = Get-EnvSetting "LOCAL_LLM_MODEL" "gemma4:e4b"
+$fallbackModels = (Get-EnvSetting "LOCAL_LLM_FALLBACK_MODELS" "gemma4:e2b") -split "," |
+    ForEach-Object { $_.Trim() } | Where-Object { $_ }
+$llmModels = @($primaryModel) + @($fallbackModels) | Select-Object -Unique
+foreach ($model in $llmModels) {
+    Write-Host "  Pulling $model (several GB, first time only)..."
+    & ollama pull $model
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "ollama pull returned $LASTEXITCODE. You can rerun: ollama pull $model"
+    } else {
+        Write-Ok "$model is installed"
+    }
 }
 
 # --- 5. .env ----------------------------------------------------------------
-Write-Step 5 8 "Offline .env (CPU Whisper, Qwen 7B)"
+Write-Step 5 8 "Offline .env (CPU Whisper, Gemma 4)"
 $example = Join-Path $RepoRoot ".env.example"
 foreach ($target in @((Join-Path $RepoRoot ".env"), (Join-Path $Backend ".env"))) {
     if (-not (Test-Path $target)) {
@@ -233,7 +251,7 @@ Set-Content -Path $whisperCheckPath -Value $whisperCheck -Encoding UTF8
 & $VenvPython $whisperCheckPath
 if ($LASTEXITCODE -ne 0) {
     Write-Warn "Whisper CPU load failed. Installing VC++ / NVIDIA Game Ready driver usually fixes cublas DLL errors."
-    Write-Warn "Qwen notes will still work if Ollama is up; transcription needs this import to succeed."
+    Write-Warn "Notes will still work if Ollama is up; transcription needs this import to succeed."
 } else {
     Write-Ok "Faster-Whisper large-v3-turbo is cached on CPU (first transcribe will be fast)"
 }
@@ -257,7 +275,7 @@ Write-Ok "Frontend dependencies ready"
 Write-Step 8 8 "Launching VoiceScribe"
 Set-Location $RepoRoot
 
-$backendCmd = "cd /d `"$Backend`" && set CUDA_VISIBLE_DEVICES=-1&& set CTRANSLATE2_CUDA=0&& call .venv\Scripts\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+$backendCmd = "cd /d `"$Backend`" && call .venv\Scripts\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
 Start-Process -FilePath "cmd.exe" -ArgumentList "/k", $backendCmd -WindowStyle Normal
 
 Start-Sleep -Seconds 4
@@ -271,7 +289,7 @@ Write-Host "====================================================================
 Write-Host "  VoiceScribe is starting." -ForegroundColor Green
 Write-Host "  App:     http://127.0.0.1:5173" -ForegroundColor Green
 Write-Host "  API:     http://127.0.0.1:8000/docs" -ForegroundColor Green
-Write-Host "  LLM:     Qwen 2.5 7B via Ollama (GPU)" -ForegroundColor Green
+Write-Host "  LLM:     $primaryModel via Ollama (GPU)" -ForegroundColor Green
 Write-Host "  Speech:  Faster-Whisper turbo on CPU (no CUDA Toolkit)" -ForegroundColor Green
 Write-Host "  Close the two black command windows to stop." -ForegroundColor Green
 Write-Host "======================================================================" -ForegroundColor Green

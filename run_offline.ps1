@@ -23,8 +23,13 @@ try {
     
     # Check if target model is present
     $modelNames = $response.models | ForEach-Object { $_.name }
-    $targetModel = "qwen2.5:7b"
-    $hasModel = $modelNames | Where-Object { $_ -like "*$targetModel*" -or $_ -like "*qwen2.5:7b*" -or $_ -like "*qwen2.5*" }
+    $targetModel = "gemma4:e4b"
+    foreach ($envFile in @((Join-Path $PSScriptRoot ".env"), (Join-Path $PSScriptRoot ".env.example"))) {
+        if (-not (Test-Path $envFile)) { continue }
+        $line = Get-Content $envFile | Where-Object { $_ -match "^\s*LOCAL_LLM_MODEL\s*=" } | Select-Object -First 1
+        if ($line) { $targetModel = ($line -split "=", 2)[1].Trim(); break }
+    }
+    $hasModel = $modelNames | Where-Object { $_ -eq $targetModel -or $_ -like "$targetModel*" }
     
     if ($hasModel) {
         Write-Host "  [+] Found clinical model: $hasModel" -ForegroundColor Green
@@ -35,7 +40,7 @@ try {
     Write-Host "  [-] Ollama is not currently running at http://localhost:11434" -ForegroundColor Yellow
     Write-Host "      To use local offline AI note generation:" -ForegroundColor Yellow
     Write-Host "      1. Download free Ollama from https://ollama.com" -ForegroundColor Yellow
-    Write-Host "      2. Run: ollama pull qwen2.5:7b" -ForegroundColor Yellow
+    Write-Host "      2. Run: ollama pull gemma4:e4b  (or the LOCAL_LLM_MODEL in .env)" -ForegroundColor Yellow
     Write-Host "      Note: The system will gracefully use local rule-based draft parsing until Ollama starts." -ForegroundColor Gray
 }
 

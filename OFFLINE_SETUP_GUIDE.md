@@ -18,8 +18,8 @@ Mic / upload WAV (16 kHz mono)
 3. Speakers            Local pitch clustering — CPU
         │
         ▼
-4. SOAP note           Qwen 2.5 7B via Ollama, Q4, **GPU** ~4.7 GB
-                       Temperature 0. Documents what was said only.
+4. SOAP note           Gemma 4 E4B via Ollama, **GPU** (Gemma 4 E2B fallback)
+                       Temperature 0.1. Documents what was said only.
         │
         ▼
 5. Grounding           Invented meds / diagnoses / symptoms are DROPPED
@@ -29,7 +29,8 @@ Mic / upload WAV (16 kHz mono)
 6. Workstation         React UI at http://localhost:5173
 ```
 
-VRAM: Qwen 7B uses the GPU. Whisper stays on CPU so they do not share 6 GB.
+VRAM: Gemma 4 uses the GPU. Whisper stays on CPU so they do not share 6 GB. On a 6 GB card
+E4B may spill partly into system RAM; set `LOCAL_LLM_MODEL=gemma4:e2b` if notes are too slow.
 
 ---
 
@@ -37,7 +38,7 @@ VRAM: Qwen 7B uses the GPU. Whisper stays on CPU so they do not share 6 GB.
 
 **Double-click `INSTALL_A_TO_Z.bat`.**
 
-That is the whole setup. It installs Python, Node.js, Ollama, Qwen 2.5 7B, CPU Whisper, then opens the app. No CUDA Toolkit. No PyTorch. First run can take 15–40 minutes because Qwen 7B is about 4.7 GB.
+That is the whole setup. It installs Python, Node.js, Ollama, the Gemma 4 note models named in `.env` (`LOCAL_LLM_MODEL` and `LOCAL_LLM_FALLBACK_MODELS`, by default `gemma4:e4b` and `gemma4:e2b`), CPU Whisper, then opens the app. No CUDA Toolkit. No PyTorch. First run can take 15–40 minutes because the Gemma 4 models are several GB.
 
 After that, use `START_VOICESCRIBE.bat` to open the app again.
 
@@ -51,12 +52,13 @@ After that, use `START_VOICESCRIBE.bat` to open the app again.
 | Variable | Value | Why |
 |---|---|---|
 | `AI_MODE` | `local` | Ollama, not Gemini |
-| `LOCAL_LLM_MODEL` | `qwen2.5:7b` | Note model on GPU |
+| `LOCAL_LLM_MODEL` | `gemma4:e4b` | Note model on GPU |
+| `LOCAL_LLM_FALLBACK_MODELS` | `gemma4:e2b` | Tried if the primary is missing or returns unusable JSON |
 | `ASR_PROVIDER` | `faster_whisper` | CTranslate2 Whisper |
 | `FASTER_WHISPER_MODEL` | `large-v3-turbo` | Multilingual, including mixed Indian + English. `large-v3` is more accurate for Tamil but ~2x slower on CPU. Do not use `small`/`base` for Tamil |
 | `ASR_SECOND_PASS` | `indic_conformer` | Tamil/Hindi-heavy utterances go to AI4Bharat IndicConformer, far better than Whisper on Tamil. Needs `transformers torchaudio onnxruntime-gpu` and a `HUGGINGFACE_TOKEN` that accepted the model terms; falls back to Whisper if it cannot load |
-| `ASR_LANGUAGES` | `ta,en,hi` | Language is detected per utterance among these only (Tanglish / Hinglish code-switching) |
-| `INDIC_ASR_LANGUAGE` | `auto` | `auto` = per-utterance detection; a code like `ta` forces one language |
-| `ASR_DEVICE` | `cpu` | Leaves VRAM for Qwen 7B |
-| `ASR_COMPUTE_TYPE` | `int8` | Fast enough on CPU |
+| `ASR_LANGUAGES` | `ta,hi,en` | Language is detected per utterance among these only (Tanglish / Hinglish code-switching) |
+| `INDIC_ASR_LANGUAGE` | `code_switching` | `code_switching`/`auto` = per-utterance detection; a code like `ta` forces one language |
+| `ASR_DEVICE` | `cpu` | Leaves VRAM for Gemma 4. `auto`/`cuda` only on an 8 GB+ GPU with CUDA 12 + cuDNN 9 DLLs |
+| `ASR_COMPUTE_TYPE` | `auto` | Resolves to `int8` on CPU |
 | `DIARIZATION_PROVIDER` | `local` | CPU |
