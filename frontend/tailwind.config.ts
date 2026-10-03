@@ -1,8 +1,12 @@
 import type { Config } from 'tailwindcss'
 
+/** `rgb(var(--token) / alpha)` so every semantic colour supports `/opacity` and dark mode. */
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`
+
 /**
- * Clinical workstation palette: deep navy surfaces, teal for AI activity,
- * restrained accents for speaker roles and review states.
+ * Design system: semantic tokens (canvas, surface, line, ink, brand, lime, aqua
+ * and soft status tones) are CSS variables defined per theme in index.css.
+ * The legacy navy/teal/pastel scales remain for charts and older call sites.
  */
 export default {
   darkMode: 'class',
@@ -10,6 +14,33 @@ export default {
   theme: {
     extend: {
       colors: {
+        canvas: token('canvas'),
+        surface: { DEFAULT: token('surface'), 2: token('surface-2'), 3: token('surface-3') },
+        line: { DEFAULT: token('line'), strong: token('line-strong') },
+        ink: { DEFAULT: token('ink'), 2: token('ink-2'), 3: token('ink-3') },
+        brand: { DEFAULT: token('brand'), fg: token('brand-fg'), hover: token('brand-hover'), soft: token('brand-soft') },
+        lime: { DEFAULT: token('lime'), fg: token('lime-fg') },
+        aqua: { DEFAULT: token('aqua'), fg: token('aqua-fg'), soft: token('aqua-soft') },
+        tone: {
+          'success-bg': token('success-bg'),
+          'success-fg': token('success-fg'),
+          'success-line': token('success-line'),
+          'warning-bg': token('warning-bg'),
+          'warning-fg': token('warning-fg'),
+          'warning-line': token('warning-line'),
+          'danger-bg': token('danger-bg'),
+          'danger-fg': token('danger-fg'),
+          'danger-line': token('danger-line'),
+          'info-bg': token('info-bg'),
+          'info-fg': token('info-fg'),
+          'info-line': token('info-line'),
+          'violet-bg': token('violet-bg'),
+          'violet-fg': token('violet-fg'),
+          'violet-line': token('violet-line'),
+          'neutral-bg': token('neutral-bg'),
+          'neutral-fg': token('neutral-fg'),
+          'neutral-line': token('neutral-line'),
+        },
         navy: {
           50: '#f2f6fa',
           100: '#e2eaf3',
@@ -72,15 +103,29 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'Consolas', 'ui-monospace', 'monospace'],
+        sans: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono Variable"', '"JetBrains Mono"', 'Consolas', 'ui-monospace', 'monospace'],
       },
       fontSize: {
         '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+        display: ['2.25rem', { lineHeight: '2.6rem', letterSpacing: '-0.025em', fontWeight: '600' }],
+        title: ['1.625rem', { lineHeight: '2rem', letterSpacing: '-0.02em', fontWeight: '600' }],
+      },
+      borderRadius: {
+        card: '1.5rem',
+        tile: '1.125rem',
+        control: '0.875rem',
       },
       boxShadow: {
-        panel: '0 1px 2px rgba(15, 35, 57, 0.06), 0 1px 3px rgba(15, 35, 57, 0.04)',
-        raised: '0 4px 16px rgba(15, 35, 57, 0.10)',
+        panel: '0 1px 2px rgb(16 24 40 / 0.04)',
+        raised: '0 18px 40px -16px rgb(16 24 40 / 0.22)',
+        card: '0 1px 2px rgb(16 24 40 / 0.04), 0 1px 1px rgb(16 24 40 / 0.02)',
+        float: '0 24px 48px -20px rgb(16 24 40 / 0.28)',
+        '2xs': '0 1px 1px rgb(16 24 40 / 0.04)',
+        xs: '0 1px 2px rgb(16 24 40 / 0.06)',
+      },
+      spacing: {
+        18: '4.5rem',
       },
       keyframes: {
         'pulse-dot': {
@@ -127,6 +172,10 @@ export default {
           '0%, 100%': { height: '4px' },
           '50%': { height: '18px' },
         },
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
       },
       animation: {
         'pulse-dot': 'pulse-dot 1.4s ease-in-out infinite',
@@ -142,6 +191,10 @@ export default {
         'equalizer-2': 'equalizer 0.8s ease-in-out infinite 0.3s',
         'equalizer-3': 'equalizer 0.8s ease-in-out infinite 0.15s',
         'equalizer-4': 'equalizer 0.8s ease-in-out infinite 0.4s',
+        'fade-in': 'fade-in 160ms ease-out',
+      },
+      backdropBlur: {
+        xs: '2px',
       },
     },
   },

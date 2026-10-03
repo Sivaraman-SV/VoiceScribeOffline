@@ -110,7 +110,7 @@ export function ClinicalNotePanel({
 
   if (!note) {
     return (
-      <Panel title={panelTitle} icon={<FileText className="h-3.5 w-3.5 text-teal-600" aria-hidden />}>
+      <Panel title={panelTitle} icon={<FileText className="h-4 w-4 text-brand" aria-hidden />}>
         <EmptyState
           title={meetingMode ? 'No meeting minutes generated yet' : 'No note generated yet'}
           detail={
@@ -151,7 +151,7 @@ export function ClinicalNotePanel({
     <>
       <Panel
         title={panelTitle}
-        icon={<FileText className="h-3.5 w-3.5 text-teal-600" aria-hidden />}
+        icon={<FileText className="h-4 w-4 text-brand" aria-hidden />}
         actions={
           <>
             {actions}
@@ -159,35 +159,35 @@ export function ClinicalNotePanel({
               <button
                 type="button"
                 onClick={() => setVitalsModalOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 px-2.5 py-1 text-2xs font-semibold text-teal-800 dark:text-teal-300 shadow-2xs hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all"
+                className="btn-teal btn-sm py-1 text-2xs"
                 title="Dictate or add patient vitals & medications"
               >
-                <Mic className="h-3 w-3 text-teal-700 dark:text-teal-400" aria-hidden />
+                <Mic className="h-3 w-3" aria-hidden />
                 <span>Dictate Vitals & Meds</span>
               </button>
             ) : null}
             <button
               type="button"
               onClick={() => void copyNote()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-2xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs transition-all hover:border-teal-500 hover:text-teal-700 dark:hover:border-teal-400 dark:hover:text-teal-300"
+              className="btn-secondary btn-sm py-1 text-2xs"
               title="Copy clinical note to clipboard"
             >
-              {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3 text-slate-500 dark:text-slate-400" />}
+              {copied ? <Check className="h-3 w-3 text-tone-success-fg" /> : <Copy className="h-3 w-3 text-ink-3" />}
               {copied ? 'Copied' : 'Copy Note'}
             </button>
-            <span className={cn('badge rounded-full px-2.5 py-0.5 text-2xs font-semibold shadow-2xs', NOTE_STATUS_STYLES[note.status])}>
+            <span className={cn('badge', NOTE_STATUS_STYLES[note.status])}>
               {NOTE_STATUS_LABELS[note.status]}
             </span>
           </>
         }
       >
-        <div className="space-y-3 p-3.5">
+        <div className="space-y-3.5 p-4 md:p-5">
           <NoteFallbackBanner fallback={content.fallback} />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-2xs text-slate-400 dark:text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-tile bg-surface-2 px-3.5 py-2 text-2xs text-ink-3">
             <span>Updated {formatRelative(note.updated_at)}</span>
-            {note.approved_by ? <span className="font-medium text-teal-700 dark:text-teal-400">Signed by {note.approved_by}</span> : null}
-            <span className="flex items-center gap-1" aria-label="Export note">
+            {note.approved_by ? <span className="font-semibold text-tone-success-fg">Signed by {note.approved_by}</span> : null}
+            <span className="flex items-center gap-1.5" aria-label="Export note">
               <Download className="h-3 w-3" aria-hidden />
               <ExportButton label="Markdown" onClick={exportMarkdown} />
               {onExport ? (
@@ -257,7 +257,7 @@ function ExportButton({ label, onClick, disabled }: { label: string; onClick: ()
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-2xs font-semibold text-slate-600 dark:text-slate-300 shadow-2xs hover:border-teal-400 hover:text-teal-700 dark:hover:text-teal-300 disabled:opacity-50"
+      className="btn-secondary btn-sm px-2.5 py-0.5 text-2xs"
     >
       {label}
     </button>
@@ -283,7 +283,7 @@ function HighlightedText({ text, terms }: { text: string; terms: string[] }) {
           <mark
             key={index}
             title="Not confirmed by the transcript: verify before signing"
-            className="rounded-sm bg-amber-200/80 px-0.5 text-amber-950 dark:bg-amber-700/50 dark:text-amber-100"
+            className="rounded-sm bg-tone-warning-line px-0.5 text-tone-warning-fg"
           >
             {part}
           </mark>
@@ -350,30 +350,24 @@ function NoteSection({
   return (
     <article
       className={cn(
-        'overflow-hidden rounded-xl border bg-white dark:bg-slate-900 shadow-2xs transition-all duration-150',
+        'overflow-hidden rounded-tile border bg-surface transition-all duration-150',
         needsReview
-          ? 'border-amber-300 dark:border-amber-700 ring-1 ring-amber-200 dark:ring-amber-900/40'
-          : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700',
-        changed && 'ring-2 ring-teal-500/30',
+          ? 'border-tone-warning-line ring-1 ring-tone-warning-line'
+          : 'border-line hover:border-line-strong',
+        changed && 'ring-2 ring-aqua/40',
       )}
     >
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 px-3.5 py-2">
-        <h3 className="text-2xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{label}</h3>
+      <header className="flex flex-wrap items-center gap-2 px-4 pb-1 pt-3.5 md:px-5">
+        <span className={cn('h-4 w-1 shrink-0 rounded-full', needsReview ? 'bg-tone-warning-fg' : 'bg-aqua')} aria-hidden />
+        <h3 className="text-sm font-semibold tracking-tight text-ink">{label}</h3>
         {grounded ? (
-          <span
-            className="badge rounded-full border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-2xs font-semibold text-emerald-800 dark:text-emerald-300"
-            title="Every cited transcript segment was validated"
-          >
+          <span className="badge tone-success" title="Every cited transcript segment was validated">
             <ShieldCheck className="h-3 w-3" aria-hidden /> Grounded
           </span>
         ) : null}
-        {section.edited_by_human ? (
-          <span className="badge rounded-full border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-2xs text-slate-600 dark:text-slate-300">
-            Edited
-          </span>
-        ) : null}
+        {section.edited_by_human ? <span className="badge tone-neutral">Edited</span> : null}
         {needsReview ? (
-          <span className="badge rounded-full border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 text-2xs font-semibold text-amber-800 dark:text-amber-300">
+          <span className="badge tone-warning">
             <ShieldAlert className="h-3 w-3" aria-hidden /> Review
           </span>
         ) : null}
@@ -383,15 +377,15 @@ function NoteSection({
             onClick={() => void copySection()}
             aria-label={`Copy ${label}`}
             title={`Copy ${label}`}
-            className="inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-slate-500 dark:text-slate-300 shadow-2xs hover:border-teal-400 hover:text-teal-700 dark:hover:text-teal-300"
+            className="btn-icon btn-icon-sm"
           >
-            {copied ? <Check className="h-3 w-3 text-emerald-600" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
+            {copied ? <Check className="h-3 w-3 text-tone-success-fg" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
           </button>
           <button
             type="button"
             onClick={() => onShowSource(sectionKey, section.text)}
             aria-label={`Show source for ${label}`}
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-2xs font-semibold text-slate-600 dark:text-slate-300 shadow-2xs hover:border-teal-400 hover:text-teal-700 dark:hover:text-teal-300"
+            className="btn-secondary btn-sm px-2.5 py-1 text-2xs hover:border-aqua hover:text-brand"
           >
             <Link2 className="h-3 w-3" aria-hidden />
             Sources ({evidenceCount})
@@ -403,7 +397,7 @@ function NoteSection({
                   type="button"
                   onClick={() => void save()}
                   disabled={saving}
-                  className="inline-flex items-center gap-1 rounded-md border border-teal-600 bg-teal-600 px-2 py-0.5 text-2xs font-semibold text-white shadow-2xs disabled:opacity-60"
+                  className="btn-primary btn-sm px-2.5 py-1 text-2xs"
                 >
                   <Check className="h-3 w-3" aria-hidden />
                   Save
@@ -414,7 +408,7 @@ function NoteSection({
                     setEditing(false)
                     setDraft(section.text)
                   }}
-                  className="inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-2xs font-semibold text-slate-600 dark:text-slate-300"
+                  className="btn-icon btn-icon-sm"
                 >
                   <X className="h-3 w-3" aria-hidden />
                 </button>
@@ -423,9 +417,9 @@ function NoteSection({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 text-2xs font-semibold text-slate-600 dark:text-slate-300 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600"
+                className="btn-secondary btn-sm px-2.5 py-1 text-2xs"
               >
-                <Pencil className="h-3 w-3 text-slate-400" aria-hidden />
+                <Pencil className="h-3 w-3 text-ink-3" aria-hidden />
                 Edit
               </button>
             )
@@ -433,27 +427,29 @@ function NoteSection({
         </span>
       </header>
 
-      <div className="p-3.5">
+      <div className="px-4 pb-4 pt-2 md:px-5">
         {editing ? (
           <>
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               rows={4}
-              className="field-input font-normal dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+              className="field-input font-normal leading-relaxed"
               aria-label={`Edit ${label}`}
             />
-            <p className="mt-1.5 text-2xs text-slate-500 dark:text-slate-400">{SECTION_HINTS[sectionKey]}</p>
+            <p className="field-hint">{SECTION_HINTS[sectionKey]}</p>
           </>
         ) : documented ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-normal">
+          <p className="whitespace-pre-wrap text-[14.5px] font-normal leading-7 text-ink">
             <HighlightedText text={section.text} terms={flaggedTerms} />
           </p>
         ) : (
-          <p className="text-xs text-slate-400 dark:text-slate-500 italic font-normal">{NOT_MENTIONED_TEXT}</p>
+          <p className="text-[13px] font-normal italic text-ink-3">{NOT_MENTIONED_TEXT}</p>
         )}
         {needsReview && section.review_reason ? (
-          <p className="mt-2 text-2xs font-medium text-amber-700 dark:text-amber-400">{section.review_reason}</p>
+          <p className="mt-2.5 rounded-control bg-tone-warning-bg px-3 py-1.5 text-2xs font-medium text-tone-warning-fg">
+            {section.review_reason}
+          </p>
         ) : null}
       </div>
     </article>
@@ -470,41 +466,42 @@ function EntityGroup({
   onShowSource: (targetKey: string, statement: string) => void
 }) {
   return (
-    <article className="overflow-hidden rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs">
-      <header className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 px-3.5 py-2">
-        <h3 className="text-2xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{title}</h3>
-        <span className="mono ml-auto text-2xs font-semibold text-slate-400 dark:text-slate-500">{entities.length}</span>
+    <article className="overflow-hidden rounded-tile border border-line bg-surface">
+      <header className="flex items-center gap-2 px-4 pb-1 pt-3.5 md:px-5">
+        <span className="h-4 w-1 shrink-0 rounded-full bg-lime" aria-hidden />
+        <h3 className="text-sm font-semibold tracking-tight text-ink">{title}</h3>
+        <span className="badge tone-neutral mono ml-auto">{entities.length}</span>
       </header>
-      <div className="p-3.5">
-        <ul className="space-y-1.5">
+      <div className="px-4 pb-4 pt-2 md:px-5">
+        <ul className="space-y-2">
           {entities.map((entity) => (
             <li
               key={entity.ref}
               className={cn(
-                'flex flex-wrap items-center gap-2 text-xs',
-                entity.review_required && 'rounded-md bg-amber-50 dark:bg-amber-950/40 px-1.5 py-1 ring-1 ring-amber-200 dark:ring-amber-900/60',
+                'flex flex-wrap items-center gap-2 text-[13px]',
+                entity.review_required && 'rounded-control bg-tone-warning-bg px-2 py-1.5 ring-1 ring-tone-warning-line',
               )}
               title={entity.review_required ? entity.review_reason ?? 'Needs review' : undefined}
             >
-              <span className={cn('badge rounded-full px-2 py-0.5 text-2xs font-semibold', ENTITY_STATUS_STYLES[entity.status])}>
+              <span className={cn('badge', ENTITY_STATUS_STYLES[entity.status])}>
                 {ENTITY_STATUS_LABELS[entity.status]}
               </span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
+              <span className="font-semibold text-ink">
                 {entity.normalized_value ? entity.normalized_value : entity.value}
               </span>
               {entity.normalized_value && entity.normalized_value.toLowerCase() !== entity.value.toLowerCase() ? (
-                <span className="text-2xs text-slate-400 dark:text-slate-500 italic">(&ldquo;{entity.value}&rdquo;)</span>
+                <span className="text-2xs italic text-ink-3">(&ldquo;{entity.value}&rdquo;)</span>
               ) : null}
-              {entity.detail ? <span className="text-slate-500 dark:text-slate-400">— {entity.detail}</span> : null}
+              {entity.detail ? <span className="text-ink-2">— {entity.detail}</span> : null}
               {entity.review_required ? (
-                <span className="inline-flex items-center gap-0.5 text-2xs font-semibold text-amber-700 dark:text-amber-400">
+                <span className="inline-flex items-center gap-0.5 text-2xs font-semibold text-tone-warning-fg">
                   <ShieldAlert className="h-3 w-3" aria-hidden /> Review
                 </span>
               ) : null}
               <button
                 type="button"
                 onClick={() => onShowSource(entity.ref, entity.value)}
-                className="ml-auto inline-flex items-center gap-1 text-2xs font-medium text-slate-400 hover:text-teal-700 dark:hover:text-teal-400"
+                className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-2xs font-semibold text-ink-3 transition hover:bg-aqua-soft hover:text-brand"
               >
                 <Link2 className="h-3 w-3" aria-hidden />
                 Sources

@@ -79,44 +79,48 @@ export function EvidenceViewer({
 
   return (
     <aside
-      className="flex w-96 shrink-0 flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-raised"
+      className="flex w-96 shrink-0 flex-col border-l border-line bg-surface text-ink shadow-float animate-fade-in"
       role="complementary"
       aria-label="Evidence viewer"
     >
-      <header className="flex items-start justify-between gap-2 border-b border-slate-200 dark:border-slate-800 bg-slate-900 dark:bg-slate-950 px-3 py-2.5 text-white">
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-[0.14em] text-teal-300">
-            <Link2 className="h-3.5 w-3.5" aria-hidden />
-            Evidence
-          </p>
-          <p className="mono mt-0.5 truncate text-2xs text-slate-400">{targetKey}</p>
+      <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-aqua-soft text-brand">
+            <Link2 className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold tracking-tight text-ink">Evidence</p>
+            <p className="mono mt-0.5 truncate text-2xs text-ink-3">{targetKey}</p>
+          </div>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+          className="btn-icon btn-icon-sm"
           aria-label="Close evidence viewer"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 px-3 py-2.5">
-          <p className="text-2xs font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">Clinical statement</p>
-          <p className="mt-1 text-sm leading-relaxed text-slate-900 dark:text-slate-100">
-            {detail?.clinical_statement || statement || '—'}
-          </p>
+        <div className="px-5 pt-4">
+          <div className="rounded-tile border border-aqua/40 bg-aqua-soft/60 px-4 py-3">
+            <p className="text-2xs font-semibold text-ink-3">Clinical statement</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink">
+              {detail?.clinical_statement || statement || '—'}
+            </p>
+          </div>
         </div>
 
         {loading ? (
-          <div className="flex items-center gap-2 px-3 py-4 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2 px-5 py-4 text-xs text-ink-3">
             <Spinner /> Resolving provenance chain…
           </div>
         ) : null}
 
         {error ? (
-          <div className="p-3">
+          <div className="px-5 pt-4">
             <InlineAlert kind="error" title="Could not load evidence">
               {error}
             </InlineAlert>
@@ -124,7 +128,7 @@ export function EvidenceViewer({
         ) : null}
 
         {detail && detail.chain.length === 0 && !loading ? (
-          <div className="p-3">
+          <div className="px-5 pt-4">
             <InlineAlert kind="warning" title="No transcript evidence">
               This statement is not linked to any transcript segment, so it is flagged{' '}
               <strong>REVIEW REQUIRED</strong> and must be verified or removed by a human before approval.
@@ -134,13 +138,13 @@ export function EvidenceViewer({
 
         {detail && detail.chain.length > 0 ? (
           <>
-            <div className="flex items-center gap-2 px-3 py-2 text-2xs text-slate-500 dark:text-slate-400">
-              <span className="mono">
+            <div className="flex items-center gap-3 px-5 pb-2 pt-4 text-2xs text-ink-3">
+              <span className="mono font-semibold">
                 {detail.validated_count}/{detail.total_count} validated
               </span>
-              <span className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+              <span className="h-px flex-1 bg-line" />
             </div>
-            <ol className="space-y-2 px-3 pb-4">
+            <ol className="space-y-2.5 px-5 pb-5">
               {detail.chain.map((entry, index) => (
                 <ChainCard key={entry.evidence.id ?? index} entry={entry} onHighlight={onHighlight} />
               ))}
@@ -149,7 +153,7 @@ export function EvidenceViewer({
         ) : null}
       </div>
 
-      <footer className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 px-3 py-2 text-2xs leading-relaxed text-slate-500 dark:text-slate-400">
+      <footer className="border-t border-line bg-surface-2 px-5 py-3 text-2xs leading-relaxed text-ink-3">
         {CONFIDENCE_TOOLTIP}
       </footer>
     </aside>
@@ -166,32 +170,30 @@ function ChainCard({ entry, onHighlight }: { entry: ChainEntry; onHighlight: (re
         type="button"
         onClick={() => onHighlight(evidence.segment_ref)}
         className={cn(
-          'w-full rounded border px-2.5 py-2 text-left transition hover:border-teal-400 hover:bg-teal-50/40 dark:hover:bg-teal-950/40',
-          evidence.validated
-            ? 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-            : 'border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-950/50',
+          'w-full rounded-tile border p-3.5 text-left transition hover:border-aqua hover:shadow-xs focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/15',
+          evidence.validated ? 'border-line bg-surface' : 'border-tone-warning-line bg-tone-warning-bg/60',
         )}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <StatusDot className={role.dot} />
           <span className={cn('badge', role.badge)}>{role.label}</span>
-          <span className="mono text-2xs text-slate-500 dark:text-slate-400">{formatTimestamp(evidence.timestamp ?? 0)}</span>
-          <span className="mono ml-auto text-2xs text-slate-400 dark:text-slate-500">{evidence.segment_ref ?? 'unlinked'}</span>
+          <span className="mono text-2xs text-ink-3">{formatTimestamp(evidence.timestamp ?? 0)}</span>
+          <span className="mono ml-auto text-2xs text-ink-3">{evidence.segment_ref ?? 'unlinked'}</span>
         </div>
 
-        <p className="mt-1.5 flex gap-1.5 text-xs leading-relaxed text-slate-800 dark:text-slate-200">
-          <Quote className="mt-0.5 h-3 w-3 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
+        <p className="mt-2.5 flex gap-2 text-[13px] leading-relaxed text-ink">
+          <Quote className="mt-1 h-3 w-3 shrink-0 text-aqua" aria-hidden />
           <span className="italic">{evidence.source_text || segment?.text || 'Source text unavailable'}</span>
         </p>
 
-        <div className="mt-1.5 flex items-center justify-between text-2xs text-slate-400 dark:text-slate-500">
+        <div className="mt-2.5 flex items-center justify-between text-2xs text-ink-3">
           {!evidence.validated ? (
-            <span className="flex items-center gap-1 text-2xs font-semibold text-amber-700 dark:text-amber-400">
+            <span className="flex items-center gap-1 text-2xs font-semibold text-tone-warning-fg">
               <AlertTriangle className="h-3 w-3" aria-hidden />
               {evidence.validation_error ?? 'Unverified'}
             </span>
           ) : (
-            <span className="text-emerald-700 dark:text-emerald-400 font-medium">✓ Transcript verified</span>
+            <span className="font-semibold text-tone-success-fg">✓ Transcript verified</span>
           )}
         </div>
       </button>

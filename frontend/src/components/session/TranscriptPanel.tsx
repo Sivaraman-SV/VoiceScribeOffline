@@ -58,25 +58,25 @@ export function TranscriptPanel({
   return (
     <Panel
       title="Conversation Transcript"
-      icon={<MessageSquare className="h-3.5 w-3.5 text-teal-600" aria-hidden />}
+      icon={<MessageSquare className="h-4 w-4 text-brand" aria-hidden />}
       actions={
         <>
           {actions}
-          <span className="mono flex items-center gap-1 text-2xs text-slate-500">
+          <span className="chip mono px-2.5 py-0.5 text-2xs">
             <Layers className="h-3 w-3" aria-hidden />
             {segments.length} lines
           </span>
           {live ? (
-            <span className="flex items-center gap-1 text-2xs font-semibold uppercase tracking-wide text-rose-600">
-              <StatusDot className="bg-rose-500" pulse />
+            <span className="badge tone-danger">
+              <StatusDot className="h-1.5 w-1.5 bg-tone-danger-fg" pulse />
               Live
             </span>
           ) : null}
         </>
       }
-      bodyClassName="bg-slate-50/40 dark:bg-slate-950/40 p-3"
+      bodyClassName="bg-surface-2 p-3"
     >
-      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto space-y-2.5 pr-1">
+      <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2.5 overflow-y-auto pr-1">
         {segments.length === 0 ? (
           <EmptyState
             icon={<Radio className="h-6 w-6" aria-hidden />}
@@ -99,32 +99,32 @@ export function TranscriptPanel({
                     type="button"
                     onClick={() => onSelect(isSelected ? null : segment.ref)}
                     className={cn(
-                      'group flex w-full flex-col gap-1.5 rounded-2xl border p-3 text-left transition-all duration-150',
+                      'group flex w-full flex-col gap-2 rounded-tile border p-3.5 text-left transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/15',
                       isSelected
-                        ? 'border-teal-500 dark:border-teal-400 bg-teal-50/90 dark:bg-teal-950/60 shadow-sm ring-1 ring-teal-500/20'
+                        ? 'border-aqua bg-aqua-soft shadow-xs ring-1 ring-aqua/40'
                         : isHighlighted
-                          ? 'border-amber-400 dark:border-amber-600 bg-amber-50/80 dark:bg-amber-950/50 shadow-xs'
-                          : 'border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-xs',
+                          ? 'border-tone-warning-line bg-tone-warning-bg shadow-xs'
+                          : 'border-line bg-surface hover:border-line-strong hover:shadow-xs',
                     )}
                     aria-current={isSelected}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={cn('badge rounded-full px-2.5 py-0.5 font-bold text-2xs shadow-2xs tracking-normal', role.badge)}>
+                      <span className={cn('badge', role.badge)}>
                         {speakerInfo.fullBadge}
                       </span>
-                      <span className="mono text-2xs text-slate-400 dark:text-slate-500 font-medium">
+                      <span className="mono text-2xs font-medium text-ink-3">
                         {formatTimestamp(segment.start_time)}
                       </span>
                       <span className="ml-auto flex items-center gap-1.5">
                         {evidenceCount > 0 ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 px-2 py-0.5 text-2xs font-semibold text-teal-700 dark:text-teal-300">
+                          <span className="badge tone-ai">
                             <Sparkles className="h-2.5 w-2.5" />
                             {evidenceCount} cited
                           </span>
                         ) : null}
                       </span>
                     </div>
-                    <p className="text-sm leading-relaxed text-slate-800 dark:text-slate-200 font-normal pl-0.5">{segment.text}</p>
+                    <p className="pl-0.5 text-sm font-normal leading-relaxed text-ink">{segment.text}</p>
                   </button>
                 </li>
               )

@@ -18,29 +18,23 @@ export const MedicalPulseLoader: React.FC<MedicalPulseLoaderProps> = ({
   const isLarge = size === 'lg'
 
   return (
-    <div className={cn('flex flex-col items-center justify-center p-6 text-center select-none', className)}>
-      {/* Animated Cardiac Monitor Container */}
-      <div className="relative flex items-center justify-center mb-4">
-        {/* Breathing ambient glow ring */}
-        <div className="absolute inset-0 -m-3 rounded-full bg-teal-500/15 blur-xl animate-pulse-dot" />
+    <div className={cn('flex select-none flex-col items-center justify-center p-6 text-center', className)}>
+      <div className="relative mb-4 flex items-center justify-center">
+        <div className="absolute inset-0 -m-3 rounded-full bg-aqua/20 blur-xl animate-pulse-dot" />
 
-        {/* Outer Circular Ring */}
         <div
           className={cn(
-            'relative rounded-full border border-teal-500/30 bg-slate-950/80 backdrop-blur-md flex items-center justify-center overflow-hidden shadow-lg shadow-teal-500/10',
-            isSmall ? 'w-12 h-12' : isLarge ? 'w-24 h-24' : 'w-18 h-18 px-3 py-3',
+            'relative flex items-center justify-center overflow-hidden rounded-full border border-aqua/40 bg-aqua-soft shadow-card',
+            isSmall ? 'h-12 w-12' : isLarge ? 'h-24 w-24' : 'h-18 w-18 px-3 py-3',
           )}
         >
-          {/* Animated SVG ECG Waveform */}
           <svg
-            className={cn('text-teal-400', isSmall ? 'w-8 h-8' : isLarge ? 'w-16 h-16' : 'w-12 h-12')}
+            className={cn('text-brand', isSmall ? 'h-8 w-8' : isLarge ? 'h-16 w-16' : 'h-12 w-12')}
             viewBox="0 0 100 40"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
-            {/* Background grid line */}
             <line x1="0" y1="20" x2="100" y2="20" stroke="currentColor" strokeOpacity="0.15" strokeWidth="1" />
-            {/* ECG trace line */}
             <path
               d="M0 20 L25 20 L32 10 L38 32 L44 5 L50 28 L56 16 L62 20 L100 20"
               stroke="currentColor"
@@ -51,14 +45,12 @@ export const MedicalPulseLoader: React.FC<MedicalPulseLoaderProps> = ({
             />
           </svg>
 
-          {/* Sweeping scanline dot */}
-          <span className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-teal-300 shadow-[0_0_8px_#2dd4bf] animate-ping opacity-75" />
+          <span className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-aqua opacity-75 animate-ping" />
         </div>
       </div>
 
-      {/* Label and sublabel */}
-      {label && <p className="text-xs font-bold tracking-tight text-slate-800 dark:text-slate-200">{label}</p>}
-      {sublabel && <p className="text-2xs text-slate-500 max-w-xs mt-1 leading-relaxed">{sublabel}</p>}
+      {label && <p className="text-sm font-semibold tracking-tight text-ink">{label}</p>}
+      {sublabel && <p className="mt-1 max-w-xs text-xs leading-relaxed text-ink-3">{sublabel}</p>}
     </div>
   )
 }
@@ -71,28 +63,28 @@ export const AudioEqualizerBars: React.FC<{ active?: boolean; className?: string
   className,
 }) => {
   return (
-    <div className={cn('flex items-center gap-0.5 h-5 px-1', className)}>
+    <div className={cn('flex h-5 items-center gap-0.5 px-1', className)}>
       <span
         className={cn(
-          'w-1 bg-teal-500 rounded-full transition-all duration-150',
+          'w-1 rounded-full bg-brand transition-all duration-150',
           active ? 'animate-equalizer-1' : 'h-1.5 opacity-40',
         )}
       />
       <span
         className={cn(
-          'w-1 bg-teal-400 rounded-full transition-all duration-150',
+          'w-1 rounded-full bg-aqua transition-all duration-150',
           active ? 'animate-equalizer-2' : 'h-2 opacity-40',
         )}
       />
       <span
         className={cn(
-          'w-1 bg-emerald-400 rounded-full transition-all duration-150',
+          'w-1 rounded-full bg-aqua transition-all duration-150',
           active ? 'animate-equalizer-3' : 'h-1.5 opacity-40',
         )}
       />
       <span
         className={cn(
-          'w-1 bg-teal-500 rounded-full transition-all duration-150',
+          'w-1 rounded-full bg-brand transition-all duration-150',
           active ? 'animate-equalizer-4' : 'h-1 opacity-40',
         )}
       />
@@ -128,19 +120,19 @@ export const TabTransition: React.FC<{
  */
 export const SkeletonCard: React.FC<{ className?: string }> = ({ className }) => {
   return (
-    <div className={cn('rounded-3xl border border-slate-200/80 bg-white p-5 shadow-xs overflow-hidden', className)}>
-      <div className="flex items-center justify-between mb-4">
-        <div className="h-4 w-32 rounded-lg shimmer-skeleton" />
+    <div className={cn('card overflow-hidden p-5', className)}>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="h-4 w-32 rounded-full shimmer-skeleton" />
         <div className="h-6 w-16 rounded-full shimmer-skeleton" />
       </div>
       <div className="space-y-2.5">
-        <div className="h-3 w-full rounded shimmer-skeleton" />
-        <div className="h-3 w-5/6 rounded shimmer-skeleton" />
-        <div className="h-3 w-4/6 rounded shimmer-skeleton" />
+        <div className="h-3 w-full rounded-full shimmer-skeleton" />
+        <div className="h-3 w-5/6 rounded-full shimmer-skeleton" />
+        <div className="h-3 w-4/6 rounded-full shimmer-skeleton" />
       </div>
-      <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-        <div className="h-3 w-20 rounded shimmer-skeleton" />
-        <div className="h-4 w-24 rounded-lg shimmer-skeleton" />
+      <div className="mt-5 flex items-center justify-between border-t border-line pt-3">
+        <div className="h-3 w-20 rounded-full shimmer-skeleton" />
+        <div className="h-4 w-24 rounded-full shimmer-skeleton" />
       </div>
     </div>
   )
@@ -155,17 +147,17 @@ export const StatusBeacon: React.FC<{
   className?: string
 }> = ({ variant = 'teal', pulse = true, className }) => {
   const colorMap = {
-    teal: { dot: 'bg-teal-500', ping: 'bg-teal-400' },
-    rose: { dot: 'bg-rose-500', ping: 'bg-rose-400' },
-    amber: { dot: 'bg-amber-500', ping: 'bg-amber-400' },
-    emerald: { dot: 'bg-emerald-500', ping: 'bg-emerald-400' },
+    teal: { dot: 'bg-aqua', ping: 'bg-aqua/70' },
+    rose: { dot: 'bg-tone-danger-fg', ping: 'bg-tone-danger-fg/60' },
+    amber: { dot: 'bg-tone-warning-fg', ping: 'bg-tone-warning-fg/60' },
+    emerald: { dot: 'bg-tone-success-fg', ping: 'bg-tone-success-fg/60' },
   }
   const { dot, ping } = colorMap[variant]
 
   return (
     <span className={cn('relative flex h-2.5 w-2.5 shrink-0', className)}>
       {pulse && <span className={cn('absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping', ping)} />}
-      <span className={cn('relative inline-flex rounded-full h-2.5 w-2.5', dot)} />
+      <span className={cn('relative inline-flex h-2.5 w-2.5 rounded-full', dot)} />
     </span>
   )
 }

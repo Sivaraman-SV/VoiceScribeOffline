@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mic, PlayCircle, Upload } from 'lucide-react'
+import { AudioLines, ClipboardPlus, Cpu, Mic, PlayCircle, Stethoscope, Upload } from 'lucide-react'
 
 import { ActiveEngines } from '@/components/system/ActiveEngines'
-import { Panel, Spinner } from '@/components/ui/primitives'
+import { Card, CardHeader, PageHeader, Spinner } from '@/components/ui/primitives'
 import { ENCOUNTER_TYPES } from '@/constants'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
@@ -106,137 +106,175 @@ export function NewSessionPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-[#f8fafc] dark:bg-slate-950 transition-colors duration-200">
-      <div className="mx-auto max-w-3xl space-y-5 p-5 md:p-6 lg:p-8 pb-20">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            New Clinical Consultation
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Enter patient details and start ambient documentation.
-          </p>
-        </div>
+    <div className="page">
+      <div className="page-inner max-w-6xl pb-20">
+        <PageHeader
+          title="New Clinical Consultation"
+          subtitle="Enter patient details and start ambient documentation."
+        />
 
         {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+          <div className="rounded-tile border px-4 py-3 text-xs tone-danger">
             {error}
           </div>
         ) : null}
 
-        {/* Patient & Encounter Details */}
-        <Panel title="Consultation Details" bodyClassName="grid gap-3 p-4 sm:grid-cols-2">
-          <label>
-            <span className="field-label">Patient Name *</span>
-            <input
-              className="field-input"
-              value={form.patient_name}
-              onChange={update('patient_name')}
-              placeholder="e.g. Ramesh Kumar"
-              required
-              autoFocus
-            />
-          </label>
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-5">
+            <Card>
+              <CardHeader
+                title="Consultation Details"
+                subtitle="Patient identity and encounter context"
+                icon={<ClipboardPlus className="h-4 w-4" aria-hidden />}
+              />
+              <div className="grid gap-4 px-5 pb-5 pt-2 sm:grid-cols-2">
+                <label>
+                  <span className="field-label">Patient Name *</span>
+                  <input
+                    className="field-input"
+                    value={form.patient_name}
+                    onChange={update('patient_name')}
+                    placeholder="e.g. Ramesh Kumar"
+                    required
+                    autoFocus
+                  />
+                </label>
 
-          <label>
-            <span className="field-label">Patient ID / MRN *</span>
-            <input
-              className="field-input mono"
-              value={form.patient_id}
-              onChange={update('patient_id')}
-              placeholder="e.g. PT-1042"
-              required
-            />
-          </label>
+                <label>
+                  <span className="field-label">Patient ID / MRN *</span>
+                  <input
+                    className="field-input mono"
+                    value={form.patient_id}
+                    onChange={update('patient_id')}
+                    placeholder="e.g. PT-1042"
+                    required
+                  />
+                </label>
 
-          <label className="sm:col-span-2">
-            <span className="field-label">Consultation Type</span>
-            <select className="field-input" value={form.simulation_type} onChange={update('simulation_type')}>
-              {clinicalEncounterTypes.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </label>
+                <label className="sm:col-span-2">
+                  <span className="field-label">Consultation Type</span>
+                  <select className="field-input" value={form.simulation_type} onChange={update('simulation_type')}>
+                    {clinicalEncounterTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-          <label className="sm:col-span-2">
-            <span className="field-label">Clinical Scenario / Chief Concern (Optional)</span>
-            <input
-              className="field-input"
-              value={form.scenario}
-              onChange={update('scenario')}
-              placeholder="Brief context (e.g. Follow-up for chest discomfort and hypertension)"
-            />
-          </label>
+                <label className="sm:col-span-2">
+                  <span className="field-label">Clinical Scenario / Chief Concern (Optional)</span>
+                  <input
+                    className="field-input"
+                    value={form.scenario}
+                    onChange={update('scenario')}
+                    placeholder="Brief context (e.g. Follow-up for chest discomfort and hypertension)"
+                  />
+                </label>
 
-          <div className="sm:col-span-2 flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-3.5 py-2.5 text-2xs text-slate-500 dark:text-slate-400">
-            <span>Attending Clinician:</span>
-            <span className="font-semibold text-teal-700 dark:text-teal-400 text-xs">{activeDoctorName}</span>
+                <div className="tile flex items-center justify-between gap-3 px-4 py-3 sm:col-span-2">
+                  <span className="flex items-center gap-2.5 text-xs text-ink-3">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-lime text-lime-fg">
+                      <Stethoscope className="h-4 w-4" aria-hidden />
+                    </span>
+                    <span>Attending Clinician:</span>
+                  </span>
+                  <span className="text-[13px] font-semibold text-brand">{activeDoctorName}</span>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Audio Input Source"
+                subtitle="How the encounter audio reaches the scribe"
+                icon={<AudioLines className="h-4 w-4" aria-hidden />}
+              />
+              <div className="grid gap-3 px-5 pb-5 pt-2 sm:grid-cols-2">
+                {MODES.map(({ value, label, detail, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setMode(value)}
+                    className={cn(
+                      'flex flex-col gap-3 rounded-tile border p-4 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/20',
+                      mode === value
+                        ? 'border-brand bg-brand-soft ring-1 ring-brand/30'
+                        : 'border-line bg-surface hover:border-line-strong hover:bg-surface-2',
+                    )}
+                    aria-pressed={mode === value}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2.5 text-[13px] font-semibold text-ink">
+                        <span
+                          className={cn(
+                            'grid h-9 w-9 shrink-0 place-items-center rounded-full transition',
+                            mode === value ? 'bg-lime text-lime-fg' : 'bg-surface-3 text-ink-2',
+                          )}
+                        >
+                          <Icon className="h-4 w-4" aria-hidden />
+                        </span>
+                        {label}
+                      </span>
+                      <span
+                        className={cn(
+                          'grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 transition',
+                          mode === value ? 'border-brand' : 'border-line-strong',
+                        )}
+                        aria-hidden
+                      >
+                        {mode === value ? <span className="h-1.5 w-1.5 rounded-full bg-brand" /> : null}
+                      </span>
+                    </span>
+                    <span className="text-xs leading-relaxed text-ink-2">{detail}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <div className="card flex flex-wrap items-center justify-end gap-2.5 px-5 py-4">
+              <button
+                type="button"
+                className="btn-primary btn-lg"
+                disabled={submitting || !form.patient_name.trim()}
+                onClick={() => void submit(true)}
+              >
+                {submitting ? <Spinner className="text-brand-fg" /> : <PlayCircle className="h-4 w-4" aria-hidden />}
+                Start Consultation
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-lg"
+                disabled={submitting || !form.patient_name.trim()}
+                onClick={() => void submit(false)}
+              >
+                Save as Draft
+              </button>
+            </div>
           </div>
-        </Panel>
 
-        <Panel title="AI engines on this server" bodyClassName="px-4 py-2">
-          <ActiveEngines status={status} />
-          <p className="pb-2 pt-1 text-[11px] text-slate-400 dark:text-slate-500">
-            Models are set in the server <code className="mono">.env</code> (the Kaggle runner), not per consultation.
-          </p>
-        </Panel>
+          <div className="space-y-5 lg:sticky lg:top-6">
+            {mode === 'MICROPHONE' ? (
+              <Card>
+                <CardHeader title="Microphone Instructions" icon={<Mic className="h-4 w-4" aria-hidden />} />
+                <ul className="ml-4 list-disc space-y-2 px-5 pb-5 pt-1 text-xs leading-relaxed text-ink-2 marker:text-ink-3">
+                  <li>Click <strong className="text-ink">Start Consultation</strong> to launch the live recording workspace.</li>
+                  <li>Press <strong className="text-ink">Record</strong> when ready to capture ambient speech between clinician and patient.</li>
+                  <li>When the visit concludes, click <strong className="text-ink">Stop & Transcribe</strong> to generate the clinical note for physician sign-off.</li>
+                </ul>
+              </Card>
+            ) : null}
 
-        {/* Audio Input Source */}
-        <Panel title="Audio Input Source" bodyClassName="grid gap-2.5 p-4 sm:grid-cols-2">
-          {MODES.map(({ value, label, detail, icon: Icon }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setMode(value)}
-              className={cn(
-                'flex flex-col gap-1.5 rounded-xl border p-3.5 text-left transition',
-                mode === value
-                  ? 'border-teal-500 bg-teal-50/80 dark:bg-teal-950/60 ring-1 ring-teal-500/40 shadow-xs'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700',
-              )}
-              aria-pressed={mode === value}
-            >
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
-                <Icon className="h-4 w-4 text-teal-600 dark:text-teal-400" aria-hidden />
-                {label}
-              </span>
-              <span className="text-2xs leading-relaxed text-slate-500 dark:text-slate-400">{detail}</span>
-            </button>
-          ))}
-        </Panel>
-
-        {/* Instructions */}
-        {mode === 'MICROPHONE' ? (
-          <Panel title="Microphone Instructions" bodyClassName="p-4">
-            <ul className="space-y-1.5 text-2xs leading-relaxed text-slate-600 dark:text-slate-300 list-disc ml-4">
-              <li>Click <strong>Start Consultation</strong> to launch the live recording workspace.</li>
-              <li>Press <strong>Record</strong> when ready to capture ambient speech between clinician and patient.</li>
-              <li>When the visit concludes, click <strong>Stop & Transcribe</strong> to generate the clinical note for physician sign-off.</li>
-            </ul>
-          </Panel>
-        ) : null}
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          <button
-            type="button"
-            className="btn-teal flex items-center gap-2 px-5 py-2.5 text-xs font-semibold shadow-sm"
-            disabled={submitting || !form.patient_name.trim()}
-            onClick={() => void submit(true)}
-          >
-            {submitting ? <Spinner className="text-white" /> : <PlayCircle className="h-4 w-4" aria-hidden />}
-            Start Consultation
-          </button>
-          <button
-            type="button"
-            className="btn-secondary px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300"
-            disabled={submitting || !form.patient_name.trim()}
-            onClick={() => void submit(false)}
-          >
-            Save as Draft
-          </button>
+            <Card>
+              <CardHeader title="AI engines on this server" icon={<Cpu className="h-4 w-4" aria-hidden />} />
+              <div className="px-5 pb-5">
+                <ActiveEngines status={status} />
+                <p className="field-hint">
+                  Models are set in the server <code className="mono">.env</code> (the Kaggle runner), not per consultation.
+                </p>
+              </div>
+            </Card>
+          </div>
         </div>
       </div>
     </div>

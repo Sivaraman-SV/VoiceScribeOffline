@@ -20,9 +20,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminO
 
   if (loading || !initialized) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-slate-200">
-        <Loader2 className="w-8 h-8 animate-spin text-teal-400 mb-3" />
-        <p className="text-sm font-medium tracking-wide text-slate-400">Verifying clinical credentials...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-canvas text-ink">
+        <span className="mb-4 grid h-14 w-14 place-items-center rounded-full bg-aqua-soft">
+          <Loader2 className="h-6 w-6 animate-spin text-brand" />
+        </span>
+        <p className="text-sm font-medium text-ink-3">Verifying clinical credentials...</p>
       </div>
     )
   }

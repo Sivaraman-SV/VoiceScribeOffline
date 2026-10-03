@@ -25,58 +25,58 @@ export const SPEAKER_ROLES: SpeakerRole[] = [
 export const ROLE_STYLES: Record<SpeakerRole, { label: string; badge: string; accent: string; dot: string }> = {
   DOCTOR: {
     label: 'Doctor',
-    badge: 'border-[#BCE1D6] bg-[#D8ECE5] text-[#134E4A] dark:border-teal-800 dark:bg-teal-950/70 dark:text-teal-300',
-    accent: 'border-l-[#134E4A]',
-    dot: 'bg-[#134E4A]',
+    badge: 'tone-brand',
+    accent: 'border-l-brand',
+    dot: 'bg-brand',
   },
   PATIENT: {
     label: 'Patient',
-    badge: 'border-[#BAE6FD] bg-[#D9EDF8] text-[#0369A1] dark:border-sky-800 dark:bg-sky-950/70 dark:text-sky-300',
-    accent: 'border-l-[#0369A1]',
-    dot: 'bg-[#0369A1]',
+    badge: 'tone-info',
+    accent: 'border-l-tone-info-fg',
+    dot: 'bg-tone-info-fg',
   },
   NURSE: {
     label: 'Nurse',
-    badge: 'border-[#DDD6FE] bg-[#E5DEFA] text-[#4C1D95] dark:border-purple-800 dark:bg-purple-950/70 dark:text-purple-300',
-    accent: 'border-l-[#4C1D95]',
-    dot: 'bg-[#4C1D95]',
+    badge: 'tone-violet',
+    accent: 'border-l-tone-violet-fg',
+    dot: 'bg-tone-violet-fg',
   },
   STAFF: {
     label: 'Staff',
-    badge: 'border-[#FDE68A] bg-[#FEF0C3] text-[#78350F] dark:border-amber-800 dark:bg-amber-950/70 dark:text-amber-300',
-    accent: 'border-l-[#78350F]',
-    dot: 'bg-[#78350F]',
+    badge: 'tone-warning',
+    accent: 'border-l-tone-warning-fg',
+    dot: 'bg-tone-warning-fg',
   },
   BACKGROUND: {
     label: 'Background',
-    badge: 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
-    accent: 'border-l-slate-400',
-    dot: 'bg-slate-400',
+    badge: 'tone-neutral',
+    accent: 'border-l-line-strong',
+    dot: 'bg-ink-3',
   },
   UNKNOWN: {
     label: 'Unknown',
-    badge: 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400',
-    accent: 'border-l-slate-300',
-    dot: 'bg-slate-300',
+    badge: 'border-line bg-surface text-ink-3',
+    accent: 'border-l-line',
+    dot: 'bg-line-strong',
   },
 }
 
 export const SESSION_STATUS_STYLES: Record<SessionStatus, string> = {
-  CREATED: 'border-navy-200 bg-navy-50 text-navy-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  LIVE: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300',
-  PAUSED: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-  PROCESSING: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-  REVIEW: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-  APPROVED: 'border-green-200 bg-green-50 text-green-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  COMPLETED: 'border-navy-200 bg-navy-50 text-navy-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  CREATED: 'tone-neutral',
+  LIVE: 'tone-danger',
+  PAUSED: 'tone-warning',
+  PROCESSING: 'tone-warning',
+  REVIEW: 'tone-warning',
+  APPROVED: 'tone-success',
+  COMPLETED: 'tone-neutral',
 }
 
 export const NOTE_STATUS_STYLES: Record<NoteStatus, string> = {
-  PROCESSING: 'border-navy-200 bg-navy-50 text-navy-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
-  DRAFT: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300',
-  REVIEW_REQUIRED: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-  APPROVED: 'border-green-200 bg-green-50 text-green-700 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
-  EXPORTED: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-300',
+  PROCESSING: 'tone-neutral',
+  DRAFT: 'tone-info',
+  REVIEW_REQUIRED: 'tone-warning',
+  APPROVED: 'tone-success',
+  EXPORTED: 'tone-ai',
 }
 
 export const NOTE_STATUS_LABELS: Record<NoteStatus, string> = {
@@ -178,11 +178,11 @@ export const ENTITY_GROUPS: { key: EntityType[]; title: string }[] = [
 ]
 
 export const ENTITY_STATUS_STYLES: Record<EntityStatus, string> = {
-  PRESENT: 'border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-950/60 dark:text-teal-300',
-  NEGATED: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-300',
-  UNCERTAIN: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300',
-  HISTORICAL: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-300',
-  UNKNOWN: 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  PRESENT: 'tone-ai',
+  NEGATED: 'tone-danger',
+  UNCERTAIN: 'tone-warning',
+  HISTORICAL: 'tone-violet',
+  UNKNOWN: 'tone-neutral',
 }
 
 export const ENTITY_STATUS_LABELS: Record<EntityStatus, string> = {

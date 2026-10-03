@@ -1,9 +1,126 @@
-import type { ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { AlertTriangle, CheckCircle2, Info, Loader2, X } from 'lucide-react'
 
 import { CONFIDENCE_TOOLTIP } from '@/constants'
 import { cn } from '@/utils/cn'
 import { formatConfidence } from '@/utils/format'
+
+/** Page title block: optional eyebrow line, large title, supporting copy and right-aligned actions. */
+export function PageHeader({
+  eyebrow,
+  title,
+  subtitle,
+  actions,
+  className,
+}: {
+  eyebrow?: ReactNode
+  title: ReactNode
+  subtitle?: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <header className={cn('flex flex-col gap-4 md:flex-row md:items-end md:justify-between', className)}>
+      <div className="min-w-0">
+        {eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}
+        <h1 className={cn('page-title', eyebrow ? 'mt-1' : undefined)}>{title}</h1>
+        {subtitle ? <p className="page-subtitle mt-2 max-w-2xl">{subtitle}</p> : null}
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2.5">{actions}</div> : null}
+    </header>
+  )
+}
+
+export function Card({
+  children,
+  className,
+  as: Tag = 'section',
+}: {
+  children: ReactNode
+  className?: string
+  as?: 'section' | 'div' | 'article' | 'aside'
+}) {
+  return <Tag className={cn('card', className)}>{children}</Tag>
+}
+
+export function CardHeader({
+  title,
+  subtitle,
+  icon,
+  actions,
+  className,
+}: {
+  title: ReactNode
+  subtitle?: ReactNode
+  icon?: ReactNode
+  actions?: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('card-header', className)}>
+      <div className="flex min-w-0 items-center gap-3">
+        {icon ? <span className="icon-badge-soft">{icon}</span> : null}
+        <div className="min-w-0">
+          <h2 className="card-title truncate">{title}</h2>
+          {subtitle ? <p className="card-subtitle">{subtitle}</p> : null}
+        </div>
+      </div>
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+    </div>
+  )
+}
+
+export function IconButton({
+  label,
+  className,
+  children,
+  size = 'md',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; size?: 'sm' | 'md' }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={cn('btn-icon', size === 'sm' && 'btn-icon-sm', className)}
+      {...props}
+    >
+      {children}
+    </button>
+  )
+}
+
+export function SegmentedControl<T extends string>({
+  value,
+  options,
+  onChange,
+  className,
+  label,
+}: {
+  value: T
+  options: { value: T; label: ReactNode; icon?: ReactNode }[]
+  onChange: (value: T) => void
+  className?: string
+  label?: string
+}) {
+  return (
+    <div className={cn('seg', className)} role="tablist" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={option.value === value}
+          onClick={() => onChange(option.value)}
+          className={cn('seg-item', option.value === value && 'seg-item-active')}
+        >
+          {option.icon}
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function Panel({
   title,
@@ -21,10 +138,10 @@ export function Panel({
   bodyClassName?: string
 }) {
   return (
-    <section className={cn('flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs text-slate-900 dark:text-slate-100', className)}>
-      <header className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 px-4 py-2.5">
-        <h2 className="flex items-center gap-2 text-2xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-          {icon}
+    <section className={cn('panel', className)}>
+      <header className="panel-header">
+        <h2 className="panel-title">
+          {icon ? <span className="text-ink-3">{icon}</span> : null}
           {title}
         </h2>
         {actions ? <div className="flex items-center gap-1.5">{actions}</div> : null}
@@ -44,7 +161,7 @@ export function Badge({
   title?: string
 }) {
   return (
-    <span className={cn('badge rounded-full px-2.5 py-0.5 font-bold', className)} title={title}>
+    <span className={cn('badge', className)} title={title}>
       {children}
     </span>
   )
@@ -69,17 +186,17 @@ export function ConfidenceMeter({
   className?: string
 }) {
   const percentage = Math.round(Math.min(Math.max(value, 0), 1) * 100)
-  const tone = percentage >= 85 ? 'bg-teal-500' : percentage >= 65 ? 'bg-amber-500' : 'bg-rose-500'
+  const tone = percentage >= 85 ? 'bg-aqua' : percentage >= 65 ? 'bg-tone-warning-fg' : 'bg-tone-danger-fg'
   return (
     <span
-      className={cn('inline-flex items-center gap-1.5 text-2xs text-slate-500', className)}
+      className={cn('inline-flex items-center gap-1.5 text-2xs text-ink-3', className)}
       title={CONFIDENCE_TOOLTIP}
     >
-      <span className="relative h-1.5 w-10 overflow-hidden rounded-full bg-slate-100">
+      <span className="relative h-1.5 w-10 overflow-hidden rounded-full bg-surface-3">
         <span className={cn('absolute inset-y-0 left-0 rounded-full', tone)} style={{ width: `${percentage}%` }} />
       </span>
       <span className="mono">{formatConfidence(value)}</span>
-      {label ? <span className="uppercase tracking-wide">{label}</span> : null}
+      {label ? <span>{label}</span> : null}
     </span>
   )
 }
@@ -96,17 +213,19 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 px-6 py-10 text-center">
-      {icon ? <div className="text-slate-300">{icon}</div> : null}
-      <p className="text-sm font-semibold text-slate-700">{title}</p>
-      {detail ? <p className="max-w-sm text-xs leading-relaxed text-slate-400">{detail}</p> : null}
-      {action}
+    <div className="flex h-full flex-col items-center justify-center gap-2.5 px-6 py-12 text-center">
+      {icon ? (
+        <div className="mb-1 grid h-14 w-14 place-items-center rounded-full bg-surface-3 text-ink-3">{icon}</div>
+      ) : null}
+      <p className="text-sm font-semibold text-ink">{title}</p>
+      {detail ? <p className="max-w-sm text-xs leading-relaxed text-ink-3">{detail}</p> : null}
+      {action ? <div className="mt-2">{action}</div> : null}
     </div>
   )
 }
 
 export function Spinner({ className }: { className?: string }) {
-  return <Loader2 className={cn('h-4 w-4 animate-spin text-teal-600', className)} aria-hidden />
+  return <Loader2 className={cn('h-4 w-4 animate-spin text-brand', className)} aria-hidden />
 }
 
 export function InlineAlert({
@@ -123,10 +242,10 @@ export function InlineAlert({
   action?: ReactNode
 }) {
   const tones = {
-    info: 'border-[#BAE6FD] bg-[#D9EDF8] text-[#0369A1]',
-    warning: 'border-[#FDE68A] bg-[#FEF0C3] text-[#78350F]',
-    error: 'border-[#F9C8D4] bg-[#FCE1E8] text-[#831843]',
-    success: 'border-[#BCE1D6] bg-[#D8ECE5] text-[#134E4A]',
+    info: 'tone-info',
+    warning: 'tone-warning',
+    error: 'tone-danger',
+    success: 'tone-success',
   } as const
   const icons = {
     info: <Info className="h-4 w-4" aria-hidden />,
@@ -136,18 +255,18 @@ export function InlineAlert({
   } as const
 
   return (
-    <div className={cn('flex items-start gap-2.5 rounded-2xl border px-3.5 py-2.5 text-xs', tones[kind])} role="status">
+    <div className={cn('flex items-start gap-3 rounded-tile border px-4 py-3 text-xs', tones[kind])} role="status">
       <span className="mt-0.5 shrink-0">{icons[kind]}</span>
       <div className="min-w-0 flex-1">
-        <p className="font-bold">{title}</p>
-        {children ? <div className="mt-0.5 leading-relaxed font-normal">{children}</div> : null}
+        <p className="text-[13px] font-semibold">{title}</p>
+        {children ? <div className="mt-0.5 font-normal leading-relaxed opacity-90">{children}</div> : null}
       </div>
       {action}
       {onDismiss ? (
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 rounded-full p-1 text-current/70 hover:bg-black/5 hover:text-current"
+          className="shrink-0 rounded-full p-1 opacity-70 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
           aria-label="Dismiss"
         >
           <X className="h-3.5 w-3.5" />
@@ -157,52 +276,101 @@ export function InlineAlert({
   )
 }
 
+const STAT_ICON_TONES = {
+  default: 'bg-lime text-lime-fg',
+  mint: 'bg-tone-success-bg text-tone-success-fg',
+  rose: 'bg-tone-danger-bg text-tone-danger-fg',
+  butter: 'bg-tone-warning-bg text-tone-warning-fg',
+  lavender: 'bg-tone-violet-bg text-tone-violet-fg',
+  sky: 'bg-tone-info-bg text-tone-info-fg',
+  live: 'bg-tone-danger-bg text-tone-danger-fg',
+  review: 'bg-tone-warning-bg text-tone-warning-fg',
+  approved: 'bg-tone-success-bg text-tone-success-fg',
+} as const
+
+/** White card, tinted icon circle, large figure: the tone colours only the icon. */
 export function StatCard({
   label,
   value,
   detail,
   icon,
   tone = 'default',
+  action,
 }: {
   label: string
   value: ReactNode
   detail?: string
   icon?: ReactNode
-  tone?: 'default' | 'mint' | 'rose' | 'butter' | 'lavender' | 'sky' | 'live' | 'review' | 'approved'
+  tone?: keyof typeof STAT_ICON_TONES
+  action?: ReactNode
 }) {
-  const tones = {
-    default: 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100',
-    mint: 'border-[#BCE1D6] dark:border-teal-900/60 bg-[#D8ECE5] dark:bg-teal-950/40 text-[#134E4A] dark:text-teal-300',
-    rose: 'border-[#F9C8D4] dark:border-rose-900/60 bg-[#FCE1E8] dark:bg-rose-950/40 text-[#831843] dark:text-rose-300',
-    butter: 'border-[#FDE68A] dark:border-amber-900/60 bg-[#FEF0C3] dark:bg-amber-950/40 text-[#78350F] dark:text-amber-300',
-    lavender: 'border-[#DDD6FE] dark:border-purple-900/60 bg-[#E5DEFA] dark:bg-purple-950/40 text-[#4C1D95] dark:text-purple-300',
-    sky: 'border-[#BAE6FD] dark:border-sky-900/60 bg-[#D9EDF8] dark:bg-sky-950/40 text-[#0369A1] dark:text-sky-300',
-    live: 'border-[#F9C8D4] dark:border-rose-900/60 bg-[#FCE1E8] dark:bg-rose-950/40 text-[#831843] dark:text-rose-300',
-    review: 'border-[#FDE68A] dark:border-amber-900/60 bg-[#FEF0C3] dark:bg-amber-950/40 text-[#78350F] dark:text-amber-300',
-    approved: 'border-[#BCE1D6] dark:border-teal-900/60 bg-[#D8ECE5] dark:bg-teal-950/40 text-[#134E4A] dark:text-teal-300',
-  } as const
-
   return (
-    <div className={cn('relative flex flex-col justify-between overflow-hidden rounded-3xl border p-4 shadow-2xs transition-all hover:shadow-xs interactive-card', tones[tone])}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-2xs font-bold uppercase tracking-wider opacity-80">{label}</p>
-        <div className="grid h-7 w-7 place-items-center rounded-full bg-white/80 dark:bg-slate-800/80 shadow-2xs">
-          {icon || <span className="text-xs font-bold">↗</span>}
+    <div className="card flex flex-col gap-4 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-full', STAT_ICON_TONES[tone])}>
+            {icon || <span className="text-xs font-bold">↗</span>}
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-ink-3">{label}</p>
+            <p className="mono mt-0.5 text-2xl font-semibold leading-tight tracking-tight text-ink">{value}</p>
+          </div>
         </div>
+        {action}
       </div>
-      <div className="mt-3">
-        <p className="mono text-2xl font-bold leading-none">{value}</p>
-        {detail ? <p className="mt-1 text-2xs opacity-80 font-medium">{detail}</p> : null}
-      </div>
+      {detail ? <p className="chip self-start">{detail}</p> : null}
     </div>
   )
 }
 
 export function SectionDivider({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5">
-      <span className="text-2xs font-bold uppercase tracking-wider text-slate-400">{label}</span>
-      <span className="h-px flex-1 bg-slate-200" />
+    <div className="flex items-center gap-3 px-3 py-2">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
+      <span className="h-px flex-1 bg-line" />
+    </div>
+  )
+}
+
+/** Shared dialog shell: backdrop, card, title row with close button. */
+export function Modal({
+  open,
+  title,
+  subtitle,
+  icon,
+  onClose,
+  children,
+  footer,
+  className,
+}: {
+  open: boolean
+  title: ReactNode
+  subtitle?: ReactNode
+  icon?: ReactNode
+  onClose: () => void
+  children: ReactNode
+  footer?: ReactNode
+  className?: string
+}) {
+  if (!open) return null
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className={cn('modal max-w-md', className)} onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {icon ? <span className="icon-badge-soft">{icon}</span> : null}
+            <div>
+              <h3 className="text-base font-semibold tracking-tight text-ink">{title}</h3>
+              {subtitle ? <p className="mt-0.5 text-xs text-ink-3">{subtitle}</p> : null}
+            </div>
+          </div>
+          <IconButton label="Close" size="sm" onClick={onClose}>
+            <X className="h-3.5 w-3.5" />
+          </IconButton>
+        </div>
+        <div className="mt-5">{children}</div>
+        {footer ? <div className="mt-6 flex items-center justify-end gap-2.5">{footer}</div> : null}
+      </div>
     </div>
   )
 }
@@ -231,43 +399,29 @@ export function ConfirmModal({
   if (!open) return null
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="w-full max-w-sm rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-raised animate-scale-spring text-slate-900 dark:text-slate-100">
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal max-w-sm">
         <div className="flex items-center gap-3">
           <div
             className={cn(
-              'grid h-10 w-10 shrink-0 place-items-center rounded-2xl',
-              tone === 'danger' ? 'bg-[#FCE1E8] dark:bg-rose-950/60 text-[#831843] dark:text-rose-400' : 'bg-[#D8ECE5] dark:bg-teal-950/60 text-[#134E4A] dark:text-teal-400',
+              'grid h-11 w-11 shrink-0 place-items-center rounded-full',
+              tone === 'danger' ? 'bg-tone-danger-bg text-tone-danger-fg' : 'bg-brand-soft text-brand',
             )}
           >
             <AlertTriangle className="h-5 w-5" />
           </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{title}</h3>
-          </div>
+          <h3 className="text-base font-semibold tracking-tight text-ink">{title}</h3>
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">{message}</p>
+        <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{message}</p>
         <div className="mt-6 flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onCancel}
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
-          >
+          <button type="button" disabled={busy} onClick={onCancel} className="btn-secondary">
             {cancelLabel}
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={onConfirm}
-            className={cn(
-              'rounded-2xl px-4 py-2 text-xs font-bold text-white shadow-xs transition-colors',
-              tone === 'danger' ? 'bg-[#DC2626] hover:bg-[#B91C1C]' : 'bg-[#18181B] hover:bg-[#27272A]',
-            )}
+            className={tone === 'danger' ? 'btn-danger' : 'btn-primary'}
           >
             {busy ? 'Deleting…' : confirmLabel}
           </button>

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { api } from '@/services/api'
 import { MedicalPulseLoader } from '@/components/ui/MedicalAnimations'
+import { PageHeader } from '@/components/ui/primitives'
 import type { AuthUser, DoctorCreatePayload } from '@/types'
 
 const DEPARTMENTS = [
@@ -151,201 +152,191 @@ export function AdminDoctorsPage() {
   })
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-y-auto bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5 mb-6">
-        <div>
-          <div className="flex items-center gap-2 text-teal-700 dark:text-teal-400 font-semibold text-xs tracking-wider uppercase">
-            <ShieldCheck className="w-4 h-4" />
-            Hospital Administration Portal
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-1">Doctor ID Provisioning</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Assign unique Doctor IDs, departments, and credentials. Doctors access the workstation using their assigned ID.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={loadDoctors}
-            disabled={loading}
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            title="Refresh Doctor List"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setIsAddModalOpen(true)
-              setError(null)
-              setSuccess(null)
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs shadow-sm transition-all interactive-card"
-          >
-            <UserPlus className="w-4 h-4" />
-            Provision New Doctor ID
-          </button>
-        </div>
-      </div>
-
-      {/* Alerts */}
-      {error && (
-        <div className="mb-4 flex items-start gap-2.5 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-          <p>{error}</p>
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-4 flex items-start gap-2.5 p-3 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-900/60 text-teal-800 dark:text-teal-300 text-xs">
-          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-teal-600" />
-          <p>{success}</p>
-        </div>
-      )}
-
-      {/* Filter and stats */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by Doctor ID, name, email, or department..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
-          />
-        </div>
-        <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-          Total Doctors: <span className="font-semibold text-slate-800 dark:text-slate-200">{doctors.length}</span>
-        </div>
-      </div>
-
-      {/* Doctors Table */}
-      <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs flex flex-col">
-        {loading && doctors.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12">
-            <MedicalPulseLoader
-              label="Synchronizing Doctor Directory"
-              sublabel="Accessing hospital credential registries and active sessions"
-              size="md"
-            />
-          </div>
-        ) : filteredDoctors.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-400 dark:text-slate-500">
-            <Stethoscope className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No doctors found</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-              {searchQuery
-                ? 'No provisioned doctor matches your search query.'
-                : 'Click "Provision New Doctor ID" to assign credentials to doctors.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/70 text-slate-600 dark:text-slate-400 uppercase tracking-wider font-semibold text-2xs">
-                  <th className="py-3 px-4">Doctor ID</th>
-                  <th className="py-3 px-4">Doctor Name</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Last Login</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredDoctors.map((doc) => (
-                  <tr key={doc.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 font-bold text-teal-700 dark:text-teal-400">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-300 font-mono">
-                        {doc.doctor_id || 'DOC-UNASSIGNED'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">{doc.full_name}</td>
-                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{doc.department || 'General Medicine'}</td>
-                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-2xs">{doc.email}</td>
-                    <td className="py-3 px-4">
-                      {doc.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                          <CheckCircle2 className="w-3 h-3" /> Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                          <XCircle className="w-3 h-3" /> Suspended
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-slate-400 dark:text-slate-500 text-2xs">
-                      {doc.last_login_at
-                        ? new Date(doc.last_login_at).toLocaleString(undefined, {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          })
-                        : 'Never'}
-                    </td>
-                    <td className="py-3 px-4 text-right space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedDoctor(doc)
-                          setResetNewPassword('')
-                          setIsResetModalOpen(true)
-                        }}
-                        className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors font-medium text-2xs"
-                      >
-                        Reset Password
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(doc)}
-                        className={`px-2.5 py-1 rounded-lg font-medium text-2xs transition-colors border ${
-                          doc.is_active
-                            ? 'border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50'
-                            : 'border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50'
-                        }`}
-                      >
-                        {doc.is_active ? 'Suspend' : 'Activate'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* PROVISION NEW DOCTOR MODAL */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden animate-scale-spring text-slate-900 dark:text-slate-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
-                  <UserPlus className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Provision Doctor ID</h3>
-                  <p className="text-2xs text-slate-500 dark:text-slate-400">Create new doctor login credentials</p>
-                </div>
-              </div>
+    <div className="page">
+      <div className="page-inner">
+        <PageHeader
+          eyebrow={
+            <span className="inline-flex items-center gap-1.5 text-brand">
+              <ShieldCheck className="h-4 w-4" />
+              Hospital Administration Portal
+            </span>
+          }
+          title="Doctor ID Provisioning"
+          subtitle="Assign unique Doctor IDs, departments, and credentials. Doctors access the workstation using their assigned ID."
+          actions={
+            <>
               <button
                 type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={loadDoctors}
+                disabled={loading}
+                className="btn-icon h-10 w-10"
+                title="Refresh Doctor List"
               >
-                <X className="w-4 h-4" />
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddModalOpen(true)
+                  setError(null)
+                  setSuccess(null)
+                }}
+                className="btn-primary"
+              >
+                <UserPlus className="h-4 w-4" />
+                Provision New Doctor ID
+              </button>
+            </>
+          }
+        />
+
+        {error && (
+          <div className="flex items-start gap-3 rounded-tile border px-4 py-3 text-xs tone-danger">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="flex items-start gap-3 rounded-tile border px-4 py-3 text-xs tone-success">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>{success}</p>
+          </div>
+        )}
+
+        <section className="card flex flex-col overflow-hidden">
+          <div className="flex flex-col gap-3 px-5 pb-4 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative max-w-sm flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
+              <input
+                type="text"
+                placeholder="Search by Doctor ID, name, email, or department..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="field-input rounded-full py-2 pl-10"
+              />
+            </div>
+            <div className="chip py-1.5">
+              Total Doctors: <span className="font-semibold text-ink">{doctors.length}</span>
+            </div>
+          </div>
+
+          {loading && doctors.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center p-12">
+              <MedicalPulseLoader
+                label="Synchronizing Doctor Directory"
+                sublabel="Accessing hospital credential registries and active sessions"
+                size="md"
+              />
+            </div>
+          ) : filteredDoctors.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 pb-14 pt-8 text-center">
+              <div className="mb-3 grid h-14 w-14 place-items-center rounded-full bg-surface-3 text-ink-3">
+                <Stethoscope className="h-6 w-6" />
+              </div>
+              <p className="text-sm font-semibold text-ink">No doctors found</p>
+              <p className="mt-1 max-w-sm text-xs leading-relaxed text-ink-3">
+                {searchQuery
+                  ? 'No provisioned doctor matches your search query.'
+                  : 'Click "Provision New Doctor ID" to assign credentials to doctors.'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto px-2 pb-2">
+              <table className="data-table min-w-[900px]">
+                <thead>
+                  <tr>
+                    <th>Doctor ID</th>
+                    <th>Doctor Name</th>
+                    <th>Department</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDoctors.map((doc) => (
+                    <tr key={doc.id}>
+                      <td>
+                        <span className="badge tone-brand mono">{doc.doctor_id || 'DOC-UNASSIGNED'}</span>
+                      </td>
+                      <td className="font-semibold text-ink">{doc.full_name}</td>
+                      <td>{doc.department || 'General Medicine'}</td>
+                      <td className="mono text-xs text-ink-3">{doc.email}</td>
+                      <td>
+                        {doc.is_active ? (
+                          <span className="badge tone-success">
+                            <CheckCircle2 className="h-3 w-3" /> Active
+                          </span>
+                        ) : (
+                          <span className="badge tone-danger">
+                            <XCircle className="h-3 w-3" /> Suspended
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-xs text-ink-3">
+                        {doc.last_login_at
+                          ? new Date(doc.last_login_at).toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                          : 'Never'}
+                      </td>
+                      <td className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDoctor(doc)
+                              setResetNewPassword('')
+                              setIsResetModalOpen(true)
+                            }}
+                            className="btn-secondary btn-sm"
+                          >
+                            Reset Password
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(doc)}
+                            className={`btn btn-sm ${doc.is_active ? 'tone-warning hover:brightness-95' : 'tone-success hover:brightness-95'}`}
+                          >
+                            {doc.is_active ? 'Suspend' : 'Activate'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {isAddModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal max-w-lg">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="icon-badge-soft">
+                  <UserPlus className="h-4 w-4" />
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold tracking-tight text-ink">Provision Doctor ID</h3>
+                  <p className="mt-0.5 text-xs text-ink-3">Create new doctor login credentials</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn-icon btn-icon-sm">
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateDoctor} className="p-6 space-y-4">
+            <form onSubmit={handleCreateDoctor} className="mt-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Doctor ID <span className="text-rose-500">*</span>
+                  <label className="field-label">
+                    Doctor ID <span className="text-tone-danger-fg">*</span>
                   </label>
                   <input
                     type="text"
@@ -353,19 +344,19 @@ export function AdminDoctorsPage() {
                     placeholder="e.g. DOC-101"
                     value={formData.doctor_id}
                     onChange={(e) => setFormData({ ...formData, doctor_id: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2 text-xs uppercase font-mono font-bold bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                    className="field-input mono font-semibold uppercase"
                   />
-                  <p className="text-2xs text-slate-400 dark:text-slate-500 mt-1">Unique doctor badge identifier</p>
+                  <p className="field-hint">Unique doctor badge identifier</p>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Department <span className="text-rose-500">*</span>
+                  <label className="field-label">
+                    Department <span className="text-tone-danger-fg">*</span>
                   </label>
                   <select
                     value={formData.department}
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                    className="field-input"
                   >
                     {DEPARTMENTS.map((dept) => (
                       <option key={dept} value={dept}>
@@ -377,8 +368,8 @@ export function AdminDoctorsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Doctor Full Name <span className="text-rose-500">*</span>
+                <label className="field-label">
+                  Doctor Full Name <span className="text-tone-danger-fg">*</span>
                 </label>
                 <input
                   type="text"
@@ -386,13 +377,13 @@ export function AdminDoctorsPage() {
                   placeholder="e.g. Dr. Arvind Swaminathan, MD"
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                  className="field-input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Official Email <span className="text-rose-500">*</span>
+                <label className="field-label">
+                  Official Email <span className="text-tone-danger-fg">*</span>
                 </label>
                 <input
                   type="email"
@@ -400,20 +391,16 @@ export function AdminDoctorsPage() {
                   placeholder="doctor@simshospital.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                  className="field-input"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Initial Password <span className="text-rose-500">*</span>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="field-label mb-0">
+                    Initial Password <span className="text-tone-danger-fg">*</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={generateRandomPassword}
-                    className="text-2xs text-teal-600 dark:text-teal-400 hover:text-teal-500 font-semibold"
-                  >
+                  <button type="button" onClick={generateRandomPassword} className="link text-xs">
                     Generate Secure
                   </button>
                 </div>
@@ -423,26 +410,18 @@ export function AdminDoctorsPage() {
                   placeholder="Minimum 6 characters"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-3 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                  className="field-input mono"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-                >
+              <div className="flex items-center justify-end gap-2.5 border-t border-line pt-5">
+                <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn-ghost">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5 interactive-card"
-                >
+                <button type="submit" disabled={submitting} className="btn-primary">
                   {submitting ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Provisioning...
                     </>
                   ) : (
@@ -455,58 +434,47 @@ export function AdminDoctorsPage() {
         </div>
       )}
 
-      {/* RESET PASSWORD MODAL */}
       {isResetModalOpen && selectedDoctor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-sm overflow-hidden animate-scale-spring text-slate-900 dark:text-slate-100">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
-              <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Reset Password</h3>
+        <div className="modal-backdrop">
+          <div className="modal max-w-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="icon-badge-soft">
+                  <KeyRound className="h-4 w-4" />
+                </span>
+                <h3 className="text-base font-semibold tracking-tight text-ink">Reset Password</h3>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X className="w-4 h-4" />
+              <button type="button" onClick={() => setIsResetModalOpen(false)} className="btn-icon btn-icon-sm">
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            <form onSubmit={handleResetPassword} className="p-6 space-y-4">
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Reset password for <span className="font-semibold text-slate-900 dark:text-slate-100">{selectedDoctor.full_name}</span> (
-                <span className="font-mono text-teal-700 dark:text-teal-400">{selectedDoctor.doctor_id || selectedDoctor.email}</span>):
+            <form onSubmit={handleResetPassword} className="mt-5 space-y-4">
+              <p className="text-[13px] leading-relaxed text-ink-2">
+                Reset password for <span className="font-semibold text-ink">{selectedDoctor.full_name}</span> (
+                <span className="mono text-brand">{selectedDoctor.doctor_id || selectedDoctor.email}</span>):
               </p>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">New Password</label>
+                <label className="field-label">New Password</label>
                 <input
                   type="text"
                   required
                   placeholder="Enter new password (min 6 characters)"
                   value={resetNewPassword}
                   onChange={(e) => setResetNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 text-slate-900 dark:text-slate-100"
+                  className="field-input mono"
                 />
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsResetModalOpen(false)}
-                  className="px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
-                >
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button type="button" onClick={() => setIsResetModalOpen(false)} className="btn-ghost">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl shadow-xs transition-all disabled:opacity-50 flex items-center gap-1.5 interactive-card"
-                >
+                <button type="submit" disabled={submitting} className="btn-primary">
                   {submitting ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Updating...
                     </>
                   ) : (

@@ -117,36 +117,35 @@ export function GMeetRecordPage() {
   }, [capture, refresh])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <header className="shrink-0 border-b border-navy-200 bg-white px-5 py-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-navy-900">
-              <Video className="h-5 w-5 text-teal-700" aria-hidden />
-              Record Google Meet
-            </h1>
-            <p className="text-xs text-navy-500">
-              Capture the Meet tab, then process it through the same transcript → note → evidence pipeline.
-            </p>
-          </div>
-          {session ? (
-            <Link to={`/sessions/${session.id}/review`} className="btn-secondary">
-              <ClipboardCheck className="h-4 w-4" aria-hidden />
-              Review & Approve
-            </Link>
-          ) : null}
-        </div>
-      </header>
-
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-canvas text-ink">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-7xl space-y-3 p-4">
+        <div className="page-inner space-y-5">
+          <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <span className="icon-badge h-12 w-12">
+                <Video className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h1 className="page-title">Record Google Meet</h1>
+                <p className="page-subtitle mt-1 max-w-2xl">
+                  Capture the Meet tab, then process it through the same transcript → note → evidence pipeline.
+                </p>
+              </div>
+            </div>
+            {session ? (
+              <Link to={`/sessions/${session.id}/review`} className="btn-primary">
+                <ClipboardCheck className="h-4 w-4" aria-hidden />
+                Review & Approve
+              </Link>
+            ) : null}
+          </header>
           <InlineAlert kind="info" title="How to capture a Meet">
             Open the Google Meet in Chrome or Edge. After the session is created, click Share Meet tab, select that tab,
             and tick <strong>Share tab audio</strong>. Keep this window open until you press Stop.
           </InlineAlert>
 
           {!session ? (
-            <Panel title="Session details" bodyClassName="grid gap-3 p-4 sm:grid-cols-2">
+            <Panel title="Session details" bodyClassName="grid gap-4 p-5 sm:grid-cols-2">
               {formError ? (
                 <div className="sm:col-span-2">
                   <InlineAlert kind="error" title="Could not create session" onDismiss={() => setFormError(null)}>
@@ -180,23 +179,23 @@ export function GMeetRecordPage() {
                 <span className="field-label">Doctor</span>
                 <input className="field-input" value={form.doctor_name} onChange={update('doctor_name')} />
               </label>
-              <div className="sm:col-span-2">
+              <div className="flex justify-end border-t border-line pt-4 sm:col-span-2">
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn-primary btn-lg"
                   disabled={creating || !form.name.trim() || !form.patient_id.trim()}
                   onClick={() => void createSession()}
                 >
-                  {creating ? <Spinner className="text-white" /> : <MonitorUp className="h-4 w-4" aria-hidden />}
+                  {creating ? <Spinner className="text-brand-fg" /> : <MonitorUp className="h-4 w-4" aria-hidden />}
                   Create session
                 </button>
               </div>
             </Panel>
           ) : (
-            <Panel title="Meet capture" bodyClassName="space-y-3 p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="mono text-xs font-semibold text-navy-800">{session.reference}</span>
-                <span className="text-xs text-navy-500">{session.name}</span>
+            <Panel title="Meet capture" bodyClassName="space-y-4 p-5">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="badge tone-brand mono">{session.reference}</span>
+                <span className="text-sm font-medium text-ink-2">{session.name}</span>
               </div>
 
               {capture.error ? (
@@ -216,9 +215,19 @@ export function GMeetRecordPage() {
                 </InlineAlert>
               ))}
 
-              <div className="flex items-center gap-2 text-xs">
-                <span className={cn('inline-block h-2 w-2 rounded-full', capture.micConnected ? 'bg-green-500' : 'bg-amber-400')} />
-                <span className={capture.micConnected ? 'text-green-700' : 'text-amber-700'}>
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-tile border px-3.5 py-2.5 text-xs font-medium',
+                  capture.micConnected ? 'tone-success' : 'tone-warning',
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-2 w-2 shrink-0 rounded-full',
+                    capture.micConnected ? 'bg-tone-success-fg' : 'bg-tone-warning-fg',
+                  )}
+                />
+                <span>
                   {capture.micConnected
                     ? 'Microphone connected — your voice is being recorded'
                     : capture.recording
@@ -251,12 +260,12 @@ export function GMeetRecordPage() {
                 </button>
                 {capture.recording ? (
                   <>
-                    <span className="flex items-center gap-1.5 text-2xs text-navy-500">
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden />
+                    <span className="chip">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-tone-danger-fg" aria-hidden />
                       Level
-                      <span className="relative h-1.5 w-24 overflow-hidden rounded-full bg-navy-100">
+                      <span className="relative h-1.5 w-24 overflow-hidden rounded-full bg-surface-3">
                         <span
-                          className="absolute inset-y-0 left-0 rounded-full bg-teal-500"
+                          className="absolute inset-y-0 left-0 rounded-full bg-aqua"
                           style={{ width: `${Math.min(100, Math.round(capture.level * 160))}%` }}
                         />
                       </span>
@@ -282,7 +291,7 @@ export function GMeetRecordPage() {
               {capture.previewStream ? (
                 <video
                   ref={previewRef}
-                  className="h-36 w-full rounded border border-navy-200 bg-navy-950 object-contain"
+                  className="h-44 w-full rounded-tile border border-line bg-black object-contain"
                   muted
                   autoPlay
                   playsInline
@@ -293,7 +302,7 @@ export function GMeetRecordPage() {
           )}
 
           {session ? (
-            <div className="grid min-h-[28rem] grid-cols-1 gap-2 lg:grid-cols-3">
+            <div className="grid min-h-[28rem] grid-cols-1 gap-4 lg:grid-cols-3">
               <TranscriptPanel
                 segments={segments}
                 speakers={speakers}
@@ -308,7 +317,7 @@ export function GMeetRecordPage() {
                 changedSections={[]}
                 onShowSource={(targetKey, statement) => focusEvidence({ targetKey, statement, kind: 'SECTION' })}
               />
-              <div className="flex min-h-0 flex-col gap-2">
+              <div className="flex min-h-0 flex-col gap-4">
                 <IntelligencePanel
                   entities={entities}
                   stage={stage}
@@ -323,13 +332,17 @@ export function GMeetRecordPage() {
       </div>
 
       {session && evidenceFocus ? (
-        <EvidenceViewer
-          sessionId={session.id}
-          targetKey={evidenceFocus.targetKey}
-          statement={evidenceFocus.statement}
-          onClose={() => focusEvidence(null)}
-          onHighlight={selectSegment}
-        />
+        <div className="pointer-events-none fixed inset-y-0 right-0 z-40 flex">
+          <div className="pointer-events-auto flex">
+            <EvidenceViewer
+              sessionId={session.id}
+              targetKey={evidenceFocus.targetKey}
+              statement={evidenceFocus.statement}
+              onClose={() => focusEvidence(null)}
+              onHighlight={selectSegment}
+            />
+          </div>
+        </div>
       ) : null}
     </div>
   )

@@ -258,16 +258,17 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-[2px]"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="w-full max-w-lg rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-raised max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Clinical Dictation & Vitals Entry</h3>
-            <p className="text-2xs text-slate-500 dark:text-slate-400">Record or enter patient vitals, physical observations, and medications.</p>
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <div className="modal max-h-[90vh] max-w-lg overflow-y-auto">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="icon-badge">
+              <Activity className="h-5 w-5" aria-hidden />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold tracking-tight text-ink">Clinical Dictation & Vitals Entry</h3>
+              <p className="mt-0.5 text-xs text-ink-3">Record or enter patient vitals, physical observations, and medications.</p>
+            </div>
           </div>
           <button
             type="button"
@@ -275,44 +276,44 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
               cleanupAudio()
               onClose()
             }}
-            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition"
+            className="btn-icon btn-icon-sm"
           >
-            <X className="h-5 w-5" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
-        <div className="space-y-4 pt-4">
+        <div className="mt-5 space-y-4">
           {errorMsg ? (
-            <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/50 p-3 text-xs text-rose-800 dark:text-rose-300">
+            <div className="tone-danger rounded-tile border px-4 py-3 text-xs">
               {errorMsg}
             </div>
           ) : null}
 
-          <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+          <div className="tile p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div
-                  className={`grid h-8 w-8 place-items-center rounded-xl transition ${
-                    isRecording ? 'bg-rose-600 text-white animate-pulse' : 'bg-teal-700 text-white'
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full transition ${
+                    isRecording ? 'bg-tone-danger-bg text-tone-danger-fg animate-pulse' : 'bg-aqua-soft text-brand'
                   }`}
                 >
                   <Mic className="h-4 w-4" aria-hidden />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">Voice Dictation</h4>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-[13px] font-semibold text-ink">Voice Dictation</h4>
                     {isRecording ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 text-2xs font-semibold text-rose-800 dark:text-rose-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-ping" />
+                      <span className="badge tone-danger">
+                        <span className="h-1.5 w-1.5 rounded-full bg-tone-danger-fg animate-ping" />
                         Listening Active
                       </span>
                     ) : transcribing ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-100 dark:bg-teal-950/60 px-2 py-0.5 text-2xs font-semibold text-teal-800 dark:text-teal-300">
-                        <Spinner className="h-3 w-3 text-teal-700 dark:text-teal-400" /> Transcribing Audio…
+                      <span className="badge tone-ai">
+                        <Spinner className="h-3 w-3 text-brand" /> Transcribing Audio…
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-2xs text-slate-500 dark:text-slate-400">
+                  <p className="mt-0.5 text-2xs text-ink-3">
                     Dictate clinical observations (e.g. &ldquo;BP 120/80, pulse 72, blood sugar 110, on Metformin 500mg&rdquo;)
                   </p>
                 </div>
@@ -324,7 +325,7 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
                     type="button"
                     onClick={handleClear}
                     title="Clear transcript"
-                    className="btn-secondary !py-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                    className="btn-icon btn-icon-sm"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
@@ -334,11 +335,7 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
                   type="button"
                   onClick={isRecording ? () => void stopListening() : () => void startListening()}
                   disabled={transcribing}
-                  className={
-                    isRecording
-                      ? 'btn-danger !py-1.5 text-xs font-semibold shadow-sm'
-                      : 'btn-teal !py-1.5 text-xs font-semibold shadow-sm'
-                  }
+                  className={isRecording ? 'btn-danger btn-sm' : 'btn-teal btn-sm'}
                 >
                   {isRecording ? (
                     <>
@@ -356,10 +353,10 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
             {/* Live Audio Level Meter */}
             {isRecording ? (
               <div className="mt-3 flex items-center gap-2">
-                <span className="text-2xs text-slate-500 dark:text-slate-400">Voice Input:</span>
-                <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                <span className="text-2xs font-medium text-ink-3">Voice Input:</span>
+                <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-teal-600 dark:bg-teal-400 transition-[width] duration-75"
+                    className="absolute inset-y-0 left-0 rounded-full bg-aqua transition-[width] duration-75"
                     style={{ width: `${Math.min(100, Math.round(audioLevel * 100))}%` }}
                   />
                 </div>
@@ -374,7 +371,7 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
               }}
               placeholder="Spoken or typed vitals dictation... (e.g. Blood pressure is 120/80, pulse 72 bpm, random blood glucose 105 mg/dL, patient is on Aspirin 75mg once daily)"
               rows={3}
-              className="field-input mt-3 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+              className="field-input mt-3 resize-none text-xs"
             />
           </div>
 
@@ -382,91 +379,91 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
             <button
               type="button"
               onClick={() => setShowManual(!showManual)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-teal-700 dark:hover:text-teal-400 transition"
+              className="btn-ghost btn-sm -ml-3"
             >
-              <Activity className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+              <Activity className="h-3.5 w-3.5 text-ink-3" aria-hidden />
               <span>{showManual ? 'Hide Quick Fields' : 'Optional Structured Entry Fields'}</span>
             </button>
 
             {showManual ? (
-              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/60 p-3.5">
-                <label className="text-2xs font-semibold text-slate-600 dark:text-slate-400">
+              <div className="tile mt-2 grid grid-cols-2 gap-3 p-4 animate-fade-in sm:grid-cols-3">
+                <label className="text-2xs font-semibold text-ink-2">
                   Blood Pressure (BP)
                   <input
                     type="text"
                     placeholder="e.g. 120/80"
                     value={bp}
                     onChange={(e) => setBp(e.target.value)}
-                    className="field-input mt-1 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+                    className="field-input mt-1.5 py-2 text-xs"
                   />
                 </label>
 
-                <label className="text-2xs font-semibold text-slate-600 dark:text-slate-400">
+                <label className="text-2xs font-semibold text-ink-2">
                   Blood Sugar / Glucose
                   <input
                     type="text"
                     placeholder="e.g. 110 mg/dL"
                     value={sugar}
                     onChange={(e) => setSugar(e.target.value)}
-                    className="field-input mt-1 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+                    className="field-input mt-1.5 py-2 text-xs"
                   />
                 </label>
 
-                <label className="text-2xs font-semibold text-slate-600 dark:text-slate-400">
+                <label className="text-2xs font-semibold text-ink-2">
                   Pulse / Heart Rate
                   <input
                     type="text"
                     placeholder="e.g. 74 bpm"
                     value={pulse}
                     onChange={(e) => setPulse(e.target.value)}
-                    className="field-input mt-1 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+                    className="field-input mt-1.5 py-2 text-xs"
                   />
                 </label>
 
-                <label className="text-2xs font-semibold text-slate-600 dark:text-slate-400">
+                <label className="text-2xs font-semibold text-ink-2">
                   SpO2 (%)
                   <input
                     type="text"
                     placeholder="e.g. 98%"
                     value={spo2}
                     onChange={(e) => setSpo2(e.target.value)}
-                    className="field-input mt-1 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+                    className="field-input mt-1.5 py-2 text-xs"
                   />
                 </label>
 
-                <label className="text-2xs font-semibold text-slate-600 dark:text-slate-400">
+                <label className="text-2xs font-semibold text-ink-2">
                   Temperature (°F)
                   <input
                     type="text"
                     placeholder="e.g. 98.6"
                     value={temp}
                     onChange={(e) => setTemp(e.target.value)}
-                    className="field-input mt-1 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+                    className="field-input mt-1.5 py-2 text-xs"
                   />
                 </label>
 
-                <label className="text-2xs font-semibold text-slate-600 dark:text-slate-400 sm:col-span-3">
+                <label className="text-2xs font-semibold text-ink-2 sm:col-span-3">
                   Current Medications & Supplements
                   <input
                     type="text"
                     placeholder="e.g. Metformin 500mg, Atorvastatin 10mg, Omega-3"
                     value={meds}
                     onChange={(e) => setMeds(e.target.value)}
-                    className="field-input mt-1 text-xs dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100"
+                    className="field-input mt-1.5 py-2 text-xs"
                   />
                 </label>
               </div>
             ) : null}
           </div>
 
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+          <div className="flex items-center justify-end gap-2.5 border-t border-line pt-4">
             <button
               type="button"
               onClick={() => {
                 cleanupAudio()
                 onClose()
               }}
-              className="btn-secondary text-xs"
+              className="btn-secondary"
             >
               Cancel
             </button>
@@ -474,9 +471,9 @@ export function VitalsDictationModal({ open, onClose, onAddVitals }: Props) {
               type="button"
               onClick={() => void handleApply()}
               disabled={saving || (!dictatedText.trim() && !bp.trim() && !sugar.trim() && !pulse.trim() && !meds.trim())}
-              className="btn-primary text-xs"
+              className="btn-primary"
             >
-              {saving ? <Spinner className="text-white" /> : <Check className="h-3.5 w-3.5" aria-hidden />}
+              {saving ? <Spinner className="text-brand-fg" /> : <Check className="h-3.5 w-3.5" aria-hidden />}
               Apply to Consultation Note
             </button>
           </div>

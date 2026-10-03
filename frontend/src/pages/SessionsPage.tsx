@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PlusCircle, Trash2 } from 'lucide-react'
+import { ArrowUpRight, ChevronLeft, ChevronRight, ClipboardList, PlusCircle, Trash2 } from 'lucide-react'
 
-import { ConfirmModal, InlineAlert, Panel, Spinner, StatusDot } from '@/components/ui/primitives'
+import { ConfirmModal, InlineAlert, PageHeader, Spinner, StatusDot } from '@/components/ui/primitives'
 import { NOTE_STATUS_LABELS, SESSION_STATUS_STYLES } from '@/constants'
 import { api } from '@/services/api'
 import { useUiStore } from '@/store/uiStore'
@@ -21,6 +21,8 @@ const STATUS_FILTERS: (SessionStatus | 'ALL')[] = [
 ]
 
 const PAGE_SIZE = 25
+
+const CHECKBOX_CLASS = 'h-4 w-4 cursor-pointer rounded border-line-strong accent-brand'
 
 export function SessionsPage() {
   const [items, setItems] = useState<SessionSummary[]>([])
@@ -112,59 +114,50 @@ export function SessionsPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-7xl space-y-4 p-5">
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Consultation History</h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{total} consultation record(s).</p>
-          </div>
-          <Link to="/sessions/new" className="btn-teal flex items-center gap-1.5 shadow-sm">
-            <PlusCircle className="h-4 w-4" aria-hidden />
-            New Consultation
-          </Link>
-        </header>
+    <div className="page">
+      <div className="page-inner">
+        <PageHeader
+          title="Consultation History"
+          subtitle={`${total} consultation record(s).`}
+          actions={
+            <Link to="/sessions/new" className="btn-primary">
+              <PlusCircle className="h-4 w-4" aria-hidden />
+              New Consultation
+            </Link>
+          }
+        />
 
-        <div className="flex flex-wrap gap-1.5">
-          {STATUS_FILTERS.map((status) => (
-            <button
-              key={status}
-              type="button"
-              onClick={() => {
-                setFilter(status)
-                setOffset(0)
-              }}
-              className={cn(
-                'rounded-full border px-3 py-1 text-2xs font-semibold uppercase tracking-wide transition',
-                filter === status
-                  ? 'border-teal-600 bg-teal-600 text-white shadow-xs'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700',
-              )}
-            >
-              {status === 'ALL' ? 'All Records' : status}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="seg flex-wrap">
+            {STATUS_FILTERS.map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => {
+                  setFilter(status)
+                  setOffset(0)
+                }}
+                className={cn('seg-item', filter === status && 'seg-item-active')}
+              >
+                {status === 'ALL' ? 'All Records' : status}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Floating Bulk Action Bar */}
         {selectedIds.size > 0 ? (
-          <div className="flex items-center justify-between rounded-2xl border border-rose-300 dark:border-rose-900/60 bg-rose-100 dark:bg-rose-950/60 px-4 py-2.5 shadow-xs animate-slide-in">
-            <span className="text-xs font-bold text-rose-900 dark:text-rose-200">
+          <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-3 animate-fade-in-down">
+            <span className="flex items-center gap-2.5 text-[13px] font-semibold text-ink">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-tone-danger-bg text-tone-danger-fg">
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+              </span>
               {selectedIds.size} consultation{selectedIds.size > 1 ? 's' : ''} selected
             </span>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedIds(new Set())}
-                className="rounded-xl border border-rose-300 dark:border-rose-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-bold text-rose-900 dark:text-rose-200 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors"
-              >
+              <button type="button" onClick={() => setSelectedIds(new Set())} className="btn-secondary btn-sm">
                 Deselect All
               </button>
-              <button
-                type="button"
-                onClick={() => setShowBulkDeleteModal(true)}
-                className="flex items-center gap-1.5 rounded-xl bg-[#DC2626] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-[#B91C1C] transition-colors"
-              >
+              <button type="button" onClick={() => setShowBulkDeleteModal(true)} className="btn-danger btn-sm">
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete Selected ({selectedIds.size})
               </button>
@@ -178,105 +171,109 @@ export function SessionsPage() {
           </InlineAlert>
         ) : null}
 
-        <Panel title="Consultation Records">
+        <section className="card overflow-hidden">
+          <div className="card-header pb-4">
+            <div className="flex items-center gap-3">
+              <span className="icon-badge-soft">
+                <ClipboardList className="h-4 w-4" aria-hidden />
+              </span>
+              <h2 className="card-title text-lg">Consultation Records</h2>
+            </div>
+          </div>
+
           {loading ? (
-            <div className="flex items-center gap-2 p-4 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-2 px-5 pb-6 text-[13px] text-ink-3">
               <Spinner /> Loading consultations…
             </div>
           ) : items.length === 0 ? (
-            <p className="p-4 text-xs text-slate-500 dark:text-slate-400">No consultations match this filter.</p>
+            <p className="px-5 pb-10 pt-4 text-center text-[13px] text-ink-3">No consultations match this filter.</p>
           ) : (
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 text-2xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                <tr>
-                  <th className="w-10 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      aria-label="Select all consultations"
-                      checked={selectedIds.size === items.length && items.length > 0}
-                      onChange={toggleSelectAll}
-                      className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
-                    />
-                  </th>
-                  <th className="px-3 py-2 font-semibold">Reference</th>
-                  <th className="px-3 py-2 font-semibold">Consultation</th>
-                  <th className="px-3 py-2 font-semibold">Patient</th>
-                  <th className="px-3 py-2 font-semibold">Source</th>
-                  <th className="px-3 py-2 font-semibold">Status</th>
-                  <th className="px-3 py-2 font-semibold">Note Status</th>
-                  <th className="px-3 py-2 text-right font-semibold">Lines</th>
-                  <th className="px-3 py-2 text-right font-semibold">Duration</th>
-                  <th className="px-3 py-2 text-right font-semibold">Date</th>
-                  <th className="px-3 py-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {items.map((session) => (
-                  <tr
-                    key={session.id}
-                    className={cn(
-                      'transition-colors',
-                      selectedIds.has(session.id) ? 'bg-teal-50/40 dark:bg-teal-950/30' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40',
-                    )}
-                  >
-                    <td className="px-3 py-2">
+            <div className="overflow-x-auto px-2 pb-2">
+              <table className="data-table min-w-[1040px]">
+                <thead>
+                  <tr>
+                    <th className="w-10">
                       <input
                         type="checkbox"
-                        aria-label={`Select ${session.reference}`}
-                        checked={selectedIds.has(session.id)}
-                        onChange={() => toggleSelect(session.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                        aria-label="Select all consultations"
+                        checked={selectedIds.size === items.length && items.length > 0}
+                        onChange={toggleSelectAll}
+                        className={CHECKBOX_CLASS}
                       />
-                    </td>
-                    <td className="px-3 py-2">
-                      <Link to={`/sessions/${session.id}`} className="mono font-semibold text-teal-700 dark:text-teal-400 hover:underline">
-                        {session.reference}
-                      </Link>
-                    </td>
-                    <td className="max-w-[16rem] truncate px-3 py-2 text-slate-800 dark:text-slate-200 font-medium">{session.name}</td>
-                    <td className="mono px-3 py-2 text-slate-600 dark:text-slate-400">{session.patient_id}</td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-400 capitalize">{session.mode.toLowerCase()}</td>
-                    <td className="px-3 py-2">
-                      <span className={cn('badge', SESSION_STATUS_STYLES[session.status])}>
-                        <StatusDot
-                          className={session.status === 'LIVE' ? 'bg-rose-500' : 'bg-current opacity-60'}
-                          pulse={session.status === 'LIVE'}
-                        />
-                        {session.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                      {session.note_status ? NOTE_STATUS_LABELS[session.note_status as NoteStatus] : '—'}
-                    </td>
-                    <td className="mono px-3 py-2 text-right text-slate-700 dark:text-slate-300">{session.segment_count}</td>
-                    <td className="mono px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                      {formatDuration(session.duration_seconds)}
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-500 dark:text-slate-400">{formatDateTime(session.created_at)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          to={session.status === 'LIVE' ? `/sessions/${session.id}/live` : `/sessions/${session.id}/review`}
-                          className="btn-secondary !py-0.5 !px-2 text-2xs font-semibold text-teal-700 dark:text-teal-400"
-                        >
-                          {session.status === 'LIVE' ? 'Open Live' : 'Review Note'}
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => setSessionToDelete(session)}
-                          className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
-                          aria-label={`Delete ${session.reference}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
+                    </th>
+                    <th>Reference</th>
+                    <th>Consultation</th>
+                    <th>Patient</th>
+                    <th>Source</th>
+                    <th>Status</th>
+                    <th>Note Status</th>
+                    <th className="text-right">Lines</th>
+                    <th className="text-right">Duration</th>
+                    <th className="text-right">Date</th>
+                    <th className="text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {items.map((session) => (
+                    <tr key={session.id} className={cn(selectedIds.has(session.id) && 'bg-brand-soft/60 hover:bg-brand-soft/60')}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${session.reference}`}
+                          checked={selectedIds.has(session.id)}
+                          onChange={() => toggleSelect(session.id)}
+                          className={CHECKBOX_CLASS}
+                        />
+                      </td>
+                      <td>
+                        <Link to={`/sessions/${session.id}`} className="link mono text-xs">
+                          {session.reference}
+                        </Link>
+                      </td>
+                      <td className="max-w-[16rem] truncate font-medium text-ink">{session.name}</td>
+                      <td className="mono text-xs">{session.patient_id}</td>
+                      <td className="capitalize">{session.mode.toLowerCase()}</td>
+                      <td>
+                        <span className={cn('badge', SESSION_STATUS_STYLES[session.status])}>
+                          <StatusDot
+                            className={session.status === 'LIVE' ? 'bg-tone-danger-fg' : 'bg-current opacity-60'}
+                            pulse={session.status === 'LIVE'}
+                          />
+                          {session.status}
+                        </span>
+                      </td>
+                      <td>
+                        {session.note_status ? NOTE_STATUS_LABELS[session.note_status as NoteStatus] : '—'}
+                      </td>
+                      <td className="mono text-right">{session.segment_count}</td>
+                      <td className="mono text-right">{formatDuration(session.duration_seconds)}</td>
+                      <td className="whitespace-nowrap text-right text-ink-3">{formatDateTime(session.created_at)}</td>
+                      <td className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            to={session.status === 'LIVE' ? `/sessions/${session.id}/live` : `/sessions/${session.id}/review`}
+                            className={session.status === 'LIVE' ? 'btn-danger-soft btn-sm' : 'btn-secondary btn-sm'}
+                          >
+                            {session.status === 'LIVE' ? 'Open Live' : 'Review Note'}
+                            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setSessionToDelete(session)}
+                            className="btn-icon btn-icon-sm border-transparent bg-transparent hover:border-tone-danger-line hover:bg-tone-danger-bg hover:text-tone-danger-fg"
+                            aria-label={`Delete ${session.reference}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </Panel>
+        </section>
 
         <ConfirmModal
           open={Boolean(sessionToDelete)}
@@ -303,16 +300,17 @@ export function SessionsPage() {
         />
 
         {total > PAGE_SIZE ? (
-          <div className="flex items-center justify-between text-xs text-navy-600">
+          <div className="flex items-center justify-between text-xs text-ink-2">
             <button
               type="button"
               className="btn-secondary"
               disabled={offset === 0}
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
             >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
               Previous
             </button>
-            <span className="mono">
+            <span className="chip mono">
               {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
             </span>
             <button
@@ -322,6 +320,7 @@ export function SessionsPage() {
               onClick={() => setOffset(offset + PAGE_SIZE)}
             >
               Next
+              <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
           </div>
         ) : null}

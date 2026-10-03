@@ -49,16 +49,18 @@ export function SpeakerRoster({
     speakers.length === 0 ? (
       <EmptyState title="Listening for voices" detail="Detected participants (Doctor, Patient) will appear here automatically." />
     ) : (
-      <ul className={cn('divide-y divide-slate-100 dark:divide-slate-800', compact && 'text-xs')}>
+      <ul className={cn('divide-y divide-line', compact && 'text-xs')}>
         {speakers.map((speaker) => {
           const role = ROLE_STYLES[speaker.role] ?? ROLE_STYLES.UNKNOWN
           const speakerInfo = formatSpeakerDisplayName(speaker.label, speaker.role, speaker.display_name)
           return (
-            <li key={speaker.id} className="flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition-colors">
-              <StatusDot className={role.dot} />
+            <li key={speaker.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-2">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-3">
+                <StatusDot className={role.dot} />
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-200">{speakerInfo.title}</p>
-                <p className="text-2xs text-slate-500 dark:text-slate-400 font-medium">
+                <p className="truncate text-[13px] font-semibold text-ink">{speakerInfo.title}</p>
+                <p className="text-2xs font-medium text-ink-3">
                   {speaker.role_source === 'HUMAN' ? 'Custom Assigned' : `Detected ${role.label}`}
                 </p>
               </div>
@@ -67,7 +69,7 @@ export function SpeakerRoster({
                   value={speaker.role}
                   disabled={busy === speaker.id}
                   onChange={(event) => void update(speaker, event.target.value as SpeakerRole)}
-                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-2xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs focus:border-teal-500 focus:outline-none"
+                  className="rounded-full border border-line bg-surface px-3 py-1 text-2xs font-semibold text-ink-2 transition hover:border-line-strong focus:border-brand/50 focus:outline-none focus:ring-4 focus:ring-brand/10 disabled:opacity-50"
                   aria-label={`Role for ${speaker.label}`}
                 >
                   {SPEAKER_ROLES.map((option) => (
@@ -77,7 +79,7 @@ export function SpeakerRoster({
                   ))}
                 </select>
               ) : (
-                <span className={cn('badge rounded-full px-2 py-0.5 text-2xs font-semibold', role.badge)}>
+                <span className={cn('badge', role.badge)}>
                   {role.label}
                 </span>
               )}
@@ -90,7 +92,7 @@ export function SpeakerRoster({
   if (compact) return body
 
   return (
-    <Panel title="Participants" icon={<UserCog className="h-3.5 w-3.5 text-teal-600" aria-hidden />} className="shrink-0">
+    <Panel title="Participants" icon={<UserCog className="h-3.5 w-3.5" aria-hidden />} className="shrink-0">
       {body}
     </Panel>
   )

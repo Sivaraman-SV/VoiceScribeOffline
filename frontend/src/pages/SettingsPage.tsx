@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Cpu, Save, ShieldAlert, TestTube2, XCircle } from 'lucide-react'
+import { Activity, CheckCircle2, Cpu, Save, Server, ShieldAlert, TestTube2, UserCog, XCircle } from 'lucide-react'
 
 import { ActiveEngines } from '@/components/system/ActiveEngines'
-import { InlineAlert, Panel, Spinner, StatusDot } from '@/components/ui/primitives'
+import { InlineAlert, PageHeader, Panel, Spinner, StatusDot } from '@/components/ui/primitives'
 import { api } from '@/services/api'
 import { useUiStore } from '@/store/uiStore'
 import type { SystemStatus } from '@/types'
@@ -47,17 +47,23 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-4 p-5">
-        <header>
-          <h1 className="text-lg font-semibold tracking-tight text-navy-900">Settings</h1>
-          <p className="text-xs text-navy-500">
-            Runtime configuration lives in the backend <code className="mono">.env</code>. This screen shows the effective
-            configuration and lets you switch the development identity used for RBAC and audit logging.
-          </p>
-        </header>
+    <div className="page">
+      <div className="page-inner max-w-5xl">
+        <PageHeader
+          title="Settings"
+          subtitle={
+            <>
+              Runtime configuration lives in the backend <code className="mono">.env</code>. This screen shows the
+              effective configuration and lets you switch the development identity used for RBAC and audit logging.
+            </>
+          }
+        />
 
-        <Panel title="Development identity" bodyClassName="grid gap-3 p-4 sm:grid-cols-3">
+        <Panel
+          title="Development identity"
+          icon={<UserCog className="h-4 w-4" aria-hidden />}
+          bodyClassName="grid gap-4 p-5 sm:grid-cols-3"
+        >
           <label>
             <span className="field-label">Display name</span>
             <input className="field-input" value={name} onChange={(event) => setName(event.target.value)} />
@@ -76,7 +82,7 @@ export function SettingsPage() {
               ))}
             </select>
           </label>
-          <div className="sm:col-span-3 flex items-center gap-2">
+          <div className="flex flex-col gap-3 border-t border-line pt-4 sm:col-span-3 sm:flex-row sm:items-center">
             <button
               type="button"
               className="btn-primary"
@@ -88,21 +94,21 @@ export function SettingsPage() {
               <Save className="h-4 w-4" aria-hidden />
               Save identity
             </button>
-            <p className="text-2xs leading-relaxed text-navy-500">
+            <p className="text-xs leading-relaxed text-ink-3">
               Sent as <code className="mono">X-User-Email</code> / <code className="mono">X-User-Role</code>. Only DOCTOR
               and FACULTY roles can approve clinical documentation.
             </p>
           </div>
         </Panel>
 
-        <Panel title="Pipeline" icon={<Cpu className="h-3.5 w-3.5" aria-hidden />} bodyClassName="space-y-3 p-4">
+        <Panel title="Pipeline" icon={<Cpu className="h-4 w-4" aria-hidden />} bodyClassName="space-y-4 p-5">
           <ActiveEngines status={status} />
-          <p className="text-xs text-navy-600">
+          <p className="text-xs text-ink-2">
             Invented medicines and diagnoses are dropped if they are not in the transcript.
           </p>
 
           {status?.pipeline ? (
-            <ol className="space-y-1.5 rounded border border-navy-100 bg-navy-50/40 p-3 text-xs text-navy-800">
+            <ol className="tile space-y-2 p-4 text-xs text-ink-2 [&_span]:text-ink">
               <li>
                 <span className="font-semibold">1. Capture</span> — {status.pipeline.audio}
               </li>
@@ -123,7 +129,7 @@ export function SettingsPage() {
               </li>
             </ol>
           ) : (
-            <p className="text-xs text-navy-500">Load the backend to see the live pipeline.</p>
+            <p className="text-xs text-ink-3">Load the backend to see the live pipeline.</p>
           )}
 
           {status?.pipeline?.llm_server ? (
@@ -132,33 +138,30 @@ export function SettingsPage() {
             </InlineAlert>
           ) : null}
 
-          <dl className="grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
             {status
               ? Object.entries(status.ai).map(([key, value]) => (
-                  <div key={key} className="flex items-baseline gap-2">
-                    <dt className="text-2xs font-semibold uppercase tracking-[0.1em] text-navy-500">{key}</dt>
-                    <dd className="mono truncate text-navy-800">{String(value)}</dd>
+                  <div key={key} className="flex items-baseline gap-2 rounded-control bg-surface-2 px-3 py-2">
+                    <dt className="shrink-0 text-xs font-medium text-ink-3">{key}</dt>
+                    <dd className="mono ml-auto truncate text-ink">{String(value)}</dd>
                   </div>
                 ))
               : null}
           </dl>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
             <button type="button" className="btn-secondary" onClick={() => void runAiCheck()} disabled={checking}>
               {checking ? <Spinner /> : <TestTube2 className="h-4 w-4" aria-hidden />}
               Test local LLM (Ollama)
             </button>
             {aiCheck ? (
               <span
-                className={cn(
-                  'flex items-center gap-1.5 text-xs',
-                  aiCheck.ok ? 'text-teal-700' : 'text-amber-700',
-                )}
+                className={cn('badge py-1', aiCheck.ok ? 'tone-success' : 'tone-warning')}
               >
                 {aiCheck.ok ? (
-                  <CheckCircle2 className="h-4 w-4" aria-hidden />
+                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
                 ) : (
-                  <XCircle className="h-4 w-4" aria-hidden />
+                  <XCircle className="h-3.5 w-3.5" aria-hidden />
                 )}
                 {String(aiCheck.detail ?? aiCheck.message ?? (aiCheck.ok ? 'Reachable' : 'Unavailable'))}
               </span>
@@ -166,7 +169,11 @@ export function SettingsPage() {
           </div>
         </Panel>
 
-        <Panel title="Pipeline providers" bodyClassName="grid gap-3 p-4 sm:grid-cols-2">
+        <Panel
+          title="Pipeline providers"
+          icon={<Server className="h-4 w-4" aria-hidden />}
+          bodyClassName="grid gap-3 p-5 sm:grid-cols-2"
+        >
           <ProviderCard
             title="ASR"
             name={status?.providers.asr.name ?? '—'}
@@ -194,18 +201,18 @@ export function SettingsPage() {
         </Panel>
 
         {metrics ? (
-          <Panel title="Counters" bodyClassName="p-4">
-            <dl className="grid gap-x-4 gap-y-1 text-2xs sm:grid-cols-2 lg:grid-cols-3">
+          <Panel title="Counters" icon={<Activity className="h-4 w-4" aria-hidden />} bodyClassName="p-5">
+            <dl className="grid gap-x-6 gap-y-0 text-xs sm:grid-cols-2 lg:grid-cols-3">
               {Object.entries(metrics)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([key, value]) => (
-                  <div key={key} className="flex items-baseline justify-between gap-2 border-b border-navy-50 py-0.5">
-                    <dt className="truncate text-navy-600">{key}</dt>
-                    <dd className="mono font-semibold text-navy-900">{value}</dd>
+                  <div key={key} className="flex items-baseline justify-between gap-2 border-b border-line/70 py-2">
+                    <dt className="truncate text-ink-2">{key}</dt>
+                    <dd className="mono font-semibold text-ink">{value}</dd>
                   </div>
                 ))}
             </dl>
-            <p className="mt-2 text-2xs text-navy-500">
+            <p className="mt-4 text-xs text-ink-3">
               Prometheus exposition is available at <code className="mono">/api/metrics?prometheus=true</code>.
             </p>
           </Panel>
@@ -236,14 +243,14 @@ function ProviderCard({
   detail: string
 }) {
   return (
-    <div className="rounded border border-navy-200/70 bg-white p-3">
-      <div className="flex items-center gap-1.5">
-        <StatusDot className={mock ? 'bg-amber-500' : 'bg-teal-500'} />
-        <p className="text-2xs font-semibold uppercase tracking-[0.12em] text-navy-500">{title}</p>
-        <span className="mono ml-auto text-2xs text-navy-700">{name}</span>
+    <div className="tile p-4">
+      <div className="flex items-center gap-2">
+        <StatusDot className={mock ? 'bg-tone-warning-fg' : 'bg-tone-success-fg'} />
+        <p className="text-[13px] font-semibold tracking-tight text-ink">{title}</p>
+        <span className="chip mono ml-auto px-2.5 py-0.5 text-2xs">{name}</span>
       </div>
-      <p className="mt-1 flex gap-1.5 text-2xs leading-relaxed text-navy-500">
-        {mock ? <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" aria-hidden /> : null}
+      <p className="mt-2 flex gap-1.5 text-xs leading-relaxed text-ink-3">
+        {mock ? <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tone-warning-fg" aria-hidden /> : null}
         {detail}
       </p>
     </div>
