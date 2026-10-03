@@ -76,9 +76,9 @@ class Settings(BaseSettings):
     # The base URL may point at this machine or at a remote GPU host (e.g. an
     # Ollama server tunnelled out of a Kaggle notebook).
     local_llm_base_url: str = "http://localhost:11434/v1"
-    local_llm_model: str = "gemma2:9b"
+    local_llm_model: str = "gemma4:12b"
     # Tried in order when the primary model is missing or returns unusable JSON.
-    local_llm_fallback_models: str = "gemma2:2b"
+    local_llm_fallback_models: str = "gemma4:e4b,gemma2:9b"
     # "ollama" uses the native /api/chat endpoint, the only one that honours
     # num_ctx / keep_alive. "openai" is for llama.cpp / vLLM servers.
     local_llm_api: str = "ollama"
@@ -134,14 +134,13 @@ class Settings(BaseSettings):
     asr_languages: str = "en"
     asr_style_prompts: bool = True
     asr_beam_size: int = 2
-    # Replaces the built-in style prompts when set. Keep drugs, symptoms and numbers
-    # out of it: Whisper copies prompt words into the transcript.
-    indic_asr_prompt_biasing: str = ""
-    # Second recogniser for Indian-language utterances: "indic_conformer" runs
-    # AI4Bharat IndicConformer-600M next to Whisper and keeps the better hypothesis.
-    asr_second_pass: str = "none"
-    asr_second_pass_model: str = "ai4bharat/indic-conformer-600m-multilingual"
-    asr_second_pass_decoder: str = "ctc"
+    indic_asr_prompt_biasing: str = (
+        "Doctor and patient clinical discussion regarding headache, fever, cough, "
+        "body pain, backache, joint pain, chest discomfort, nausea, vomiting, loose motion, "
+        "vitals, blood pressure, Volini gel, Moov spray, Omnigel, Dolo 650, Paracetamol, "
+        "Combiflam, Pantocid, Pan-D, Azithral, Augmentin, Cetirizine, Montair-LC, Allegra, "
+        "Digene, Electral ORS, Metformin, Telma."
+    )
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
     huggingface_token: str | None = None
 
@@ -225,24 +224,20 @@ class Settings(BaseSettings):
     def pipeline_summary(self) -> dict[str, str]:
         """Single source of truth for the offline stack shown in Settings."""
         asr = self.asr_provider.value
-        if asr in ("gemini", "parakeet", "mock"):
-            asr_line = f"{asr} ({self.parakeet_model})" if asr == "parakeet" else asr
+        if asr == "tanglish_whisper":
+            asr_model = self.tanglish_whisper_model
+        elif asr == "hinglish_whisper":
+            asr_model = self.hinglish_whisper_model
+        elif asr == "indic_conformer" or (asr == "indic_whisper" and self.indic_whisper_use_transformers):
+            asr_model = self.indic_whisper_model
         else:
-            # Every Whisper-family provider name runs Faster-Whisper with this model.
-            asr_line = f"Faster-Whisper {self.faster_whisper_model} ({self.asr_compute_type} on {self.asr_device})"
-        code_switching = self.indic_asr_language in ("auto", "", "code_switching", "indic")
-        second_pass = (
-            f"IndicConformer ({self.asr_second_pass_model}, {self.asr_second_pass_decoder})"
-            if self.asr_second_pass == "indic_conformer"
-            else "off"
-        )
+            asr_model = self.faster_whisper_model
         return {
             "llm_server": f"{self.local_llm_base_url} ({self.local_llm_api} API)",
             "llm_fallback_chain": " → ".join(self.local_llm_model_chain),
-            "audio": "Browser 16 kHz mono WAV → server preprocess (VAD)",
-            "asr": asr_line,
-            "asr_second_pass": second_pass,
-            "languages": f"{self.asr_languages} ({'per-utterance code-switching' if code_switching else 'fixed: ' + self.indic_asr_language})",
+            "audio": "Browser 16 kHz mono WAV → local preprocess (VAD)",
+            "asr": f"{asr} / {asr_model} ({self.asr_compute_type} on {self.asr_device})",
+            "languages": f"{self.asr_languages} ({'per-utterance code-switching' if self.indic_asr_language in ('auto', '') else self.indic_asr_language})",
             "diarization": self.diarization_provider.value,
             "llm": f"{self.effective_ai_mode.value} / {self.local_llm_model if self.effective_ai_mode.value in ('local', 'ollama') else self.gemini_model}",
             "grounding": "Entities must match the transcript; assessment/plan must match the doctor's own words",

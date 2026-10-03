@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 
@@ -40,6 +41,7 @@ def extract_json_object(text: str) -> Any:
 
 def _strip_fences(text: str) -> str:
     cleaned = text.strip()
+    cleaned = re.sub(r"<(?:think|thought)>.*?</(?:think|thought)>", "", cleaned, flags=re.DOTALL).strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.split("```", 2)[1]
         if cleaned.lstrip().lower().startswith("json"):

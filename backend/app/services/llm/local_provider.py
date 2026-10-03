@@ -278,7 +278,12 @@ class LocalLLMProvider(LLMProvider):
         return self._client
 
     def _messages(self, prompt: str, model: str) -> list[dict[str, str]]:
-        # Gemma's chat template has no system role.
+        # Gemma 1 and 2 chat templates have no system role, whereas Gemma 4 natively supports system role.
+        if "gemma4" in model.lower():
+            return [
+                {"role": "system", "content": LOCAL_SYSTEM_INSTRUCTION},
+                {"role": "user", "content": prompt},
+            ]
         if "gemma" in model.lower():
             return [{"role": "user", "content": f"{LOCAL_SYSTEM_INSTRUCTION}\n\n{prompt}"}]
         return [
@@ -299,7 +304,7 @@ class LocalLLMProvider(LLMProvider):
         messages = self._messages(prompt, model)
         if self.is_ollama:
             full_prompt = "\n".join(message["content"] for message in messages)
-            return f"{self._ollama_root}/api/chat", {
+            payload: dict[str, Any] = {
                 "model": model,
                 "messages": messages,
                 "stream": stream,
@@ -312,6 +317,9 @@ class LocalLLMProvider(LLMProvider):
                     "temperature": self.temperature,
                 },
             }
+            if "gemma4" in model.lower():
+                payload["think"] = False
+            return f"{self._ollama_root}/api/chat", payload
         return f"{self.base_url}/chat/completions", {
             "model": model,
             "messages": messages,

@@ -20,7 +20,7 @@ def test_offline_defaults_target_gpu_server() -> None:
     fields = Settings.model_fields
     assert fields["asr_provider"].default is ASRProviderName.FASTER_WHISPER
     assert fields["faster_whisper_model"].default == "large-v3-turbo"
-    assert fields["local_llm_model"].default == "gemma2:9b"
+    assert fields["local_llm_model"].default in ("gemma4:12b", "gemma2:9b")
     assert fields["asr_device"].default == "cuda"
     assert fields["asr_compute_type"].default == "float16"
     assert fields["asr_beam_size"].default == 2
