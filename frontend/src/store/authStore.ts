@@ -64,9 +64,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             localStorage.setItem(USER_KEY, JSON.stringify(freshUser))
             set({ user: freshUser as AuthUser })
           }
-        } catch {
-          // If token expired, log out
-          get().logout()
+        } catch (error) {
+          const status = error && typeof error === 'object' && 'status' in error ? Number(error.status) : 0
+          if (status === 401 || status === 403) get().logout()
         }
         return
       } catch {

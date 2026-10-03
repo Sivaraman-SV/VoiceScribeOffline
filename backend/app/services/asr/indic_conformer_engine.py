@@ -62,9 +62,14 @@ class IndicConformerEngine:
         return bool(language) and language in SUPPORTED_LANGUAGES and self.failed is None
 
     def load(self) -> Any:  # pragma: no cover - requires the model download
+        import os
+
+        os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
         with _LOCK:
             if self.model_name in _MODELS:
                 return _MODELS[self.model_name]
+            if self.failed:
+                raise IndicConformerEngineUnavailable(self.failed)
             try:
                 from transformers import AutoModel  # type: ignore import-not-found
             except ImportError as exc:
@@ -72,9 +77,13 @@ class IndicConformerEngine:
                     "IndicConformer needs transformers, torchaudio and onnxruntime-gpu on the ASR host."
                 ) from exc
             logger.info("loading_indic_conformer", extra={"model": self.model_name, "decoder": self.decoder})
-            model = AutoModel.from_pretrained(
-                self.model_name, trust_remote_code=True, token=settings.huggingface_token or None
-            )
+            try:
+                model = AutoModel.from_pretrained(
+                    self.model_name, trust_remote_code=True, token=settings.huggingface_token or None
+                )
+            except Exception as exc:
+                self.failed = str(exc) or type(exc).__name__
+                raise IndicConformerEngineUnavailable(self.failed) from exc
             _MODELS[self.model_name] = model
             return model
 

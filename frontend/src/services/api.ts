@@ -60,8 +60,26 @@ function headers(extra?: HeadersInit): HeadersInit {
   return { ...base, ...(extra as Record<string, string> | undefined) }
 }
 
+const REQUEST_TIMEOUT_MS = 15000
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, { ...init, headers: headers(init?.headers) })
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: headers(init?.headers),
+      signal: init?.signal ?? controller.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new ApiError(408, 'The server did not respond. The Kaggle tunnel may be busy — try again.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timer)
+  }
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`
     try {

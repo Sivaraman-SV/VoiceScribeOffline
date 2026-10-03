@@ -142,6 +142,13 @@ if frontend_dist.is_dir() and (frontend_dist / "index.html").is_file():
     if assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
+        @app.middleware("http")
+        async def cache_hashed_assets(request: Request, call_next):
+            response = await call_next(request)
+            if request.url.path.startswith("/assets/"):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
+
     @app.get("/{full_path:path}", tags=["frontend"])
     async def serve_spa(full_path: str):
         if full_path:

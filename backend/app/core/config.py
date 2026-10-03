@@ -144,8 +144,9 @@ class Settings(BaseSettings):
     indic_asr_prompt_biasing: str = ""
     # Second recogniser for Indian-language utterances: "indic_conformer" runs
     # AI4Bharat IndicConformer-600M next to Whisper and keeps the better hypothesis.
-    asr_second_pass: str = "none"
-    asr_second_pass_model: str = "ai4bharat/indic-conformer-600m-multilingual"
+    # Whisper alone is weak on Tamil; if the conformer cannot load, Whisper is used.
+    asr_second_pass: str = "indic_conformer"
+    asr_second_pass_model: str = "ai4bharat/indicconformer_stt_multi_hybrid_rnnt_600m"
     asr_second_pass_decoder: str = "ctc"
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
     huggingface_token: str | None = None

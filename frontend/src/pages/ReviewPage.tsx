@@ -60,6 +60,7 @@ export function ReviewPage() {
   const [error, setError] = useState<string | null>(null)
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [activeTab, setActiveTab] = useState<SidebarTab>('entities')
+  const [mobileTab, setMobileTab] = useState<'transcript' | 'note' | 'details'>('note')
 
   useEffect(() => {
     if (!id) return
@@ -175,7 +176,6 @@ export function ReviewPage() {
 
   const flags = note.review_flags ?? []
   const blockingFlags = flags.filter((f) => f.severity === 'ERROR' || f.severity === 'BLOCKING')
-  const infoFlags = flags.filter((f) => f.severity === 'INFO' || f.severity === 'WARNING')
   const approvable = note.status === 'DRAFT' || note.status === 'REVIEW_REQUIRED'
   const isApproved = note.status === 'APPROVED' || note.status === 'EXPORTED'
 
@@ -183,116 +183,114 @@ export function ReviewPage() {
     cn('seg-item flex-1 justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold', activeTab === tab && 'seg-item-active')
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 bg-canvas p-3 text-ink animate-fade-in-up md:p-4">
-      <section className="card shrink-0 overflow-hidden">
-        <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <Link to={`/sessions/${session.id}/live`} className="btn-secondary btn-sm">
-              <ArrowLeft className="h-4 w-4" aria-hidden />
-              Return to Session
-            </Link>
-            <div className="h-6 w-px bg-line" />
-            <div className="min-w-0 leading-tight">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="mono text-xs font-semibold text-brand">{session.reference}</span>
-                <span className="text-2xs font-medium text-ink-3">·</span>
-                <span className="text-sm font-semibold tracking-tight text-ink">
-                  {session.patient_name ? `${session.patient_name} (${session.patient_id})` : `Patient ${session.patient_id}`}
-                </span>
-                <span className="text-2xs font-medium text-ink-3">·</span>
-                <span className="mono text-2xs text-ink-3">{formatDuration(session.duration_seconds)}</span>
-              </div>
-              <p className="mt-0.5 truncate text-xs text-ink-3">{session.name}</p>
-            </div>
-          </div>
-
+    <div className="flex h-full min-h-0 flex-col gap-2 bg-canvas px-3 pb-3 pt-2 text-ink md:px-4">
+      <header className="flex h-12 shrink-0 items-center gap-3">
+        <Link
+          to={`/sessions/${session.id}/live`}
+          className="btn-icon"
+          title="Return to Session"
+          aria-label="Return to Session"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+        </Link>
+        <div className="min-w-0 leading-tight">
           <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[15px] font-semibold tracking-tight text-ink">
+              {session.patient_name ? `${session.patient_name} (${session.patient_id})` : `Patient ${session.patient_id}`}
+            </span>
+            <span className="mono text-2xs font-semibold text-brand">{session.reference}</span>
+            <span className="mono text-2xs text-ink-3">{formatDuration(session.duration_seconds)}</span>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-ink-3">{session.name}</p>
+        </div>
+
+        <div className="hidden min-w-0 items-center gap-2 md:flex">
+          {isApproved ? (
+            <span className="badge tone-success px-2.5 py-0.5 text-2xs">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Signed
+            </span>
+          ) : (
+            <span className="badge tone-warning px-2.5 py-0.5 text-2xs">
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Pending review
+              {blockingFlags.length > 0 ? ` · ${blockingFlags.length} flagged` : ''}
+            </span>
+          )}
+        </div>
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            disabled={busy}
+            onClick={() => void exportAs('PDF')}
+            title="Download formatted clinical PDF note"
+          >
+            <FileText className="h-3.5 w-3.5 text-tone-danger-fg" aria-hidden />
+            PDF
+          </button>
+          {isApproved ? (
             <button
               type="button"
               className="btn-secondary btn-sm"
               disabled={busy}
-              onClick={() => void exportAs('PDF')}
-              title="Download formatted clinical PDF note"
+              onClick={() => void reopen()}
+              title="Reopen note for additional clinical edits"
             >
-              <FileText className="h-3.5 w-3.5 text-tone-danger-fg" aria-hidden />
-              PDF
+              <RotateCcw className="h-3.5 w-3.5 text-ink-3" aria-hidden />
+              Reopen Note
             </button>
-
-            {isApproved ? (
-              <button
-                type="button"
-                className="btn-secondary btn-sm"
-                disabled={busy}
-                onClick={() => void reopen()}
-                title="Reopen note for additional clinical edits"
-              >
-                <RotateCcw className="h-3.5 w-3.5 text-ink-3" aria-hidden />
-                Reopen Note
-              </button>
-            ) : null}
-          </div>
-        </header>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface-2 px-4 py-2.5 md:px-5">
-          <div className="flex items-center gap-3">
-            {isApproved ? (
-              <span className="badge tone-success px-3 py-1 text-xs">
-                <ShieldCheck className="h-4 w-4" />
-                Approved & Signed by {note.approved_by ?? identityName}
-                <span className="text-2xs font-normal opacity-80">({formatDateTime(note.approved_at)})</span>
-              </span>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="badge tone-warning px-3 py-1 text-xs">
-                  <ShieldAlert className="h-3.5 w-3.5" />
-                  Pending Doctor Review & Approval
-                </span>
-                {blockingFlags.length > 0 ? (
-                  <span className="text-xs font-semibold text-tone-warning-fg">({blockingFlags.length} items flagged)</span>
-                ) : (
-                  <span className="text-xs text-ink-3">
-                    {infoFlags.length > 0 ? 'Clinical edits and vitals preserved · Ready to sign' : 'All statements cited with transcript evidence'}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!isApproved ? (
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={busy || !approvable}
-                onClick={() => setShowApproveModal(true)}
-                title="Review, approve and sign clinical note"
-              >
-                <BadgeCheck className="h-4 w-4" aria-hidden />
-                Approve & Sign Note
-              </button>
-            ) : null}
-          </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={busy || !approvable}
+              onClick={() => setShowApproveModal(true)}
+              title="Review, approve and sign clinical note"
+            >
+              <BadgeCheck className="h-4 w-4" aria-hidden />
+              Approve & Sign Note
+            </button>
+          )}
         </div>
-      </section>
+      </header>
 
-      {blockingFlags.length > 0 ? (
-        <div className="tone-warning shrink-0 rounded-tile border px-4 py-3 text-xs">
-          <div className="flex items-center gap-2 text-[13px] font-semibold">
-            <ShieldAlert className="h-4 w-4 shrink-0" />
-            <span>Items requiring clinical review prior to approval:</span>
-          </div>
-          <ul className="ml-6 mt-1.5 list-disc space-y-0.5 text-xs opacity-90">
-            {blockingFlags.map((flag) => (
-              <li key={`${flag.section}-${flag.reason}`}>
-                <span className="font-semibold">{flag.label}:</span> {flag.reason}
-              </li>
-            ))}
-          </ul>
+      <div className="seg flex w-full shrink-0 lg:hidden">
+        {(
+          [
+            ['note', 'Clinical note'],
+            ['transcript', `Transcript (${segments.length})`],
+            ['details', 'Facts & evidence'],
+          ] as const
+        ).map(([tab, label]) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setMobileTab(tab)}
+            className={cn('seg-item flex-1 justify-center', mobileTab === tab && 'seg-item-active')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,0.9fr)]">
+        <div className={cn('min-h-0 flex-col [&>*]:flex-1', mobileTab === 'note' ? 'flex' : 'hidden lg:flex')}>
+          <ClinicalNotePanel
+            note={note}
+            encounterType={session.simulation_type}
+            changedSections={[]}
+            editable={!isApproved}
+            onShowSource={(targetKey, statement) => focusEvidence({ targetKey, statement, kind: 'SECTION' })}
+            onSaveSection={saveSection}
+            onExport={exportAs}
+            exportBusy={busy}
+            streamingSections={streamingSections}
+          />
         </div>
-      ) : null}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,0.85fr)]">
-        <div className="flex min-h-0 flex-col gap-3">
+        <div className={cn('min-h-0 flex-col [&>*]:flex-1', mobileTab === 'transcript' ? 'flex' : 'hidden lg:flex')}>
           <TranscriptPanel
             segments={segments}
             speakers={speakers}
@@ -302,22 +300,9 @@ export function ReviewPage() {
             live={false}
             onSelect={selectSegment}
           />
-          <SpeakerRoster speakers={speakers} editable={!isApproved} onChanged={() => void refresh()} />
         </div>
 
-        <ClinicalNotePanel
-          note={note}
-          encounterType={session.simulation_type}
-          changedSections={[]}
-          editable={!isApproved}
-          onShowSource={(targetKey, statement) => focusEvidence({ targetKey, statement, kind: 'SECTION' })}
-          onSaveSection={saveSection}
-          onExport={exportAs}
-          exportBusy={busy}
-          streamingSections={streamingSections}
-        />
-
-        <div className="panel">
+        <div className={cn('panel', mobileTab === 'details' ? 'flex lg:hidden' : 'hidden')}>
           <div className="border-b border-line p-2.5">
             <div className="seg flex w-full bg-surface-2">
               <button type="button" onClick={() => setActiveTab('entities')} className={tabClass('entities')}>
@@ -456,6 +441,9 @@ export function ReviewPage() {
                     <p className="mt-1 text-xs leading-relaxed text-ink">{session.scenario}</p>
                   </div>
                 ) : null}
+                <div className="-mx-4 [&>section]:rounded-none [&>section]:border-x-0 [&>section]:border-b-0 [&>section]:shadow-none">
+                  <SpeakerRoster speakers={speakers} editable={!isApproved} onChanged={() => void refresh()} />
+                </div>
               </div>
             )}
             </TabTransition>

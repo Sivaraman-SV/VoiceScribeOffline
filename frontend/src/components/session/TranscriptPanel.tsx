@@ -74,7 +74,7 @@ export function TranscriptPanel({
           ) : null}
         </>
       }
-      bodyClassName="bg-surface-2 p-3"
+      bodyClassName="bg-surface-2 p-2"
     >
       <div ref={scrollRef} onScroll={handleScroll} className="h-full space-y-2.5 overflow-y-auto pr-1">
         {segments.length === 0 ? (
@@ -99,7 +99,7 @@ export function TranscriptPanel({
                     type="button"
                     onClick={() => onSelect(isSelected ? null : segment.ref)}
                     className={cn(
-                      'group flex w-full flex-col gap-2 rounded-tile border p-3.5 text-left transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/15',
+                      'group flex w-full flex-col gap-1.5 rounded-tile border p-2.5 text-left transition-all duration-150 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/15',
                       isSelected
                         ? 'border-aqua bg-aqua-soft shadow-xs ring-1 ring-aqua/40'
                         : isHighlighted

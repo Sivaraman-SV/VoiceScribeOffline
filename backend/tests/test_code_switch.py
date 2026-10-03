@@ -28,6 +28,13 @@ def test_policy_restricts_to_clinic_languages_and_folds_confusions() -> None:
     assert language == "ta"
 
 
+def test_first_mixed_greeting_is_not_pinned_to_english() -> None:
+    policy = LanguagePolicy(allowed=("ta", "en", "hi"))
+    assert policy.previous is None
+    # A one-second "vanakkam doctor" used to stay English because previous defaulted to "en".
+    assert policy.choose([("en", 0.55), ("ta", 0.45)], duration=1.0)[0] == "ta"
+
+
 def test_policy_keeps_short_utterances_in_the_conversation_language() -> None:
     policy = LanguagePolicy(allowed=("ta", "en", "hi"))
     assert policy.choose([("ta", 0.9), ("en", 0.1)], duration=5.0)[0] == "ta"

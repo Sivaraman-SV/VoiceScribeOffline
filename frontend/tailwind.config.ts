@@ -104,7 +104,7 @@ export default {
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono Variable"', '"JetBrains Mono"', 'Consolas', 'ui-monospace', 'monospace'],
+        mono: ['ui-monospace', 'Consolas', 'monospace'],
       },
       fontSize: {
         '2xs': ['0.6875rem', { lineHeight: '1rem' }],
@@ -176,6 +176,24 @@ export default {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        'ring-out': {
+          '0%': { opacity: '0.55', transform: 'scale(1)' },
+          '100%': { opacity: '0', transform: 'scale(1.9)' },
+        },
+        'flow-dot': {
+          '0%': { left: '0%', opacity: '0' },
+          '15%': { opacity: '1' },
+          '85%': { opacity: '1' },
+          '100%': { left: '100%', opacity: '0' },
+        },
+        reveal: {
+          '0%': { opacity: '0', transform: 'translateY(10px)', filter: 'blur(2px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)', filter: 'blur(0)' },
+        },
+        'soft-bounce': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-3px)' },
+        },
       },
       animation: {
         'pulse-dot': 'pulse-dot 1.4s ease-in-out infinite',
@@ -192,6 +210,10 @@ export default {
         'equalizer-3': 'equalizer 0.8s ease-in-out infinite 0.15s',
         'equalizer-4': 'equalizer 0.8s ease-in-out infinite 0.4s',
         'fade-in': 'fade-in 160ms ease-out',
+        'ring-out': 'ring-out 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) infinite',
+        'flow-dot': 'flow-dot 1.6s ease-in-out infinite',
+        reveal: 'reveal 420ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'soft-bounce': 'soft-bounce 1.4s ease-in-out infinite',
       },
       backdropBlur: {
         xs: '2px',

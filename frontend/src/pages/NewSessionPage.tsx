@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AudioLines, ClipboardPlus, Cpu, Mic, PlayCircle, Stethoscope, Upload } from 'lucide-react'
+import { ClipboardPlus, Cpu, Mic, PlayCircle, Stethoscope } from 'lucide-react'
 
 import { ActiveEngines } from '@/components/system/ActiveEngines'
 import { Card, CardHeader, PageHeader, Spinner } from '@/components/ui/primitives'
@@ -8,23 +8,7 @@ import { ENCOUNTER_TYPES } from '@/constants'
 import { api } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
-import type { SessionMode, SystemStatus } from '@/types'
-import { cn } from '@/utils/cn'
-
-const MODES: { value: SessionMode; label: string; detail: string; icon: typeof Mic }[] = [
-  {
-    value: 'MICROPHONE',
-    label: 'Live Microphone',
-    detail: 'Record the doctor–patient conversation directly in the clinic. Speech is transcribed and structured in real time.',
-    icon: Mic,
-  },
-  {
-    value: 'UPLOAD',
-    label: 'Upload Audio File',
-    detail: 'Upload an audio file (.wav, .mp3, .m4a) of an encounter to generate notes in one pass.',
-    icon: Upload,
-  },
-]
+import type { SystemStatus } from '@/types'
 
 const DEFAULTS = {
   name: 'Consultation',
@@ -46,7 +30,6 @@ export function NewSessionPage() {
     : (identityName || 'Dr. A. Rao')
 
   const [form, setForm] = useState({ ...DEFAULTS, doctor_name: activeDoctorName })
-  const [mode, setMode] = useState<SessionMode>('MICROPHONE')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<SystemStatus | null>(null)
@@ -59,11 +42,6 @@ export function NewSessionPage() {
   const clinicalEncounterTypes = useMemo(() => {
     return ENCOUNTER_TYPES.filter((t) => t.value !== 'MEETING' && t.value !== 'MDT')
   }, [])
-
-  const audioSource = useMemo(
-    () => (mode === 'MICROPHONE' ? 'MICROPHONE' : 'UPLOAD'),
-    [mode],
-  )
 
   const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((previous) => ({ ...previous, [key]: event.target.value }))
@@ -84,8 +62,8 @@ export function NewSessionPage() {
         simulation_type: form.simulation_type,
         doctor_name: activeDoctorName,
         faculty_name: null,
-        mode,
-        audio_source: audioSource,
+        mode: 'MICROPHONE',
+        audio_source: 'MICROPHONE',
       })
       if (autoStart) {
         await api.startSession(session.id)
@@ -107,7 +85,7 @@ export function NewSessionPage() {
 
   return (
     <div className="page">
-      <div className="page-inner max-w-6xl pb-20">
+      <div className="page-inner max-w-6xl py-5 md:py-6">
         <PageHeader
           title="New Clinical Consultation"
           subtitle="Enter patient details and start ambient documentation."
@@ -184,54 +162,6 @@ export function NewSessionPage() {
               </div>
             </Card>
 
-            <Card>
-              <CardHeader
-                title="Audio Input Source"
-                subtitle="How the encounter audio reaches the scribe"
-                icon={<AudioLines className="h-4 w-4" aria-hidden />}
-              />
-              <div className="grid gap-3 px-5 pb-5 pt-2 sm:grid-cols-2">
-                {MODES.map(({ value, label, detail, icon: Icon }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setMode(value)}
-                    className={cn(
-                      'flex flex-col gap-3 rounded-tile border p-4 text-left transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand/20',
-                      mode === value
-                        ? 'border-brand bg-brand-soft ring-1 ring-brand/30'
-                        : 'border-line bg-surface hover:border-line-strong hover:bg-surface-2',
-                    )}
-                    aria-pressed={mode === value}
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2.5 text-[13px] font-semibold text-ink">
-                        <span
-                          className={cn(
-                            'grid h-9 w-9 shrink-0 place-items-center rounded-full transition',
-                            mode === value ? 'bg-lime text-lime-fg' : 'bg-surface-3 text-ink-2',
-                          )}
-                        >
-                          <Icon className="h-4 w-4" aria-hidden />
-                        </span>
-                        {label}
-                      </span>
-                      <span
-                        className={cn(
-                          'grid h-4 w-4 shrink-0 place-items-center rounded-full border-2 transition',
-                          mode === value ? 'border-brand' : 'border-line-strong',
-                        )}
-                        aria-hidden
-                      >
-                        {mode === value ? <span className="h-1.5 w-1.5 rounded-full bg-brand" /> : null}
-                      </span>
-                    </span>
-                    <span className="text-xs leading-relaxed text-ink-2">{detail}</span>
-                  </button>
-                ))}
-              </div>
-            </Card>
-
             <div className="card flex flex-wrap items-center justify-end gap-2.5 px-5 py-4">
               <button
                 type="button"
@@ -254,16 +184,14 @@ export function NewSessionPage() {
           </div>
 
           <div className="space-y-5 lg:sticky lg:top-6">
-            {mode === 'MICROPHONE' ? (
-              <Card>
-                <CardHeader title="Microphone Instructions" icon={<Mic className="h-4 w-4" aria-hidden />} />
-                <ul className="ml-4 list-disc space-y-2 px-5 pb-5 pt-1 text-xs leading-relaxed text-ink-2 marker:text-ink-3">
-                  <li>Click <strong className="text-ink">Start Consultation</strong> to launch the live recording workspace.</li>
-                  <li>Press <strong className="text-ink">Record</strong> when ready to capture ambient speech between clinician and patient.</li>
-                  <li>When the visit concludes, click <strong className="text-ink">Stop & Transcribe</strong> to generate the clinical note for physician sign-off.</li>
-                </ul>
-              </Card>
-            ) : null}
+            <Card>
+              <CardHeader title="Microphone" icon={<Mic className="h-4 w-4" aria-hidden />} />
+              <ul className="ml-4 list-disc space-y-2 px-5 pb-5 pt-1 text-xs leading-relaxed text-ink-2 marker:text-ink-3">
+                <li>Click <strong className="text-ink">Start Consultation</strong> to open the recording workspace.</li>
+                <li>Tap the microphone when you are ready. That is the only recording control.</li>
+                <li>Tap it again to stop. The transcript and clinical note then appear on the same screen.</li>
+              </ul>
+            </Card>
 
             <Card>
               <CardHeader title="AI engines on this server" icon={<Cpu className="h-4 w-4" aria-hidden />} />

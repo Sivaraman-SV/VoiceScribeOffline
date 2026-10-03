@@ -54,6 +54,7 @@ After that, use `START_VOICESCRIBE.bat` to open the app again.
 | `LOCAL_LLM_MODEL` | `qwen2.5:7b` | Note model on GPU |
 | `ASR_PROVIDER` | `faster_whisper` | CTranslate2 Whisper |
 | `FASTER_WHISPER_MODEL` | `large-v3-turbo` | Multilingual, including mixed Indian + English. `large-v3` is more accurate for Tamil but ~2x slower on CPU. Do not use `small`/`base` for Tamil |
+| `ASR_SECOND_PASS` | `indic_conformer` | Tamil/Hindi-heavy utterances go to AI4Bharat IndicConformer, far better than Whisper on Tamil. Needs `transformers torchaudio onnxruntime-gpu` and a `HUGGINGFACE_TOKEN` that accepted the model terms; falls back to Whisper if it cannot load |
 | `ASR_LANGUAGES` | `ta,en,hi` | Language is detected per utterance among these only (Tanglish / Hinglish code-switching) |
 | `INDIC_ASR_LANGUAGE` | `auto` | `auto` = per-utterance detection; a code like `ta` forces one language |
 | `ASR_DEVICE` | `cpu` | Leaves VRAM for Qwen 7B |

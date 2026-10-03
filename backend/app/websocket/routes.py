@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.core.database import get_session_factory
@@ -21,7 +23,18 @@ async def session_socket(websocket: WebSocket, session_id: str) -> None:
     try:
         await _send_snapshot(websocket, session_id)
         while True:
-            message = await websocket.receive_json()
+            raw = await websocket.receive()
+            if raw.get("type") in ("websocket.disconnect", "websocket.close"):
+                raise WebSocketDisconnect()
+            text = raw.get("text")
+            if not text:
+                continue
+            try:
+                message = json.loads(text)
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(message, dict):
+                continue
             kind = str(message.get("type", "")).upper()
 
             if kind == "PING":

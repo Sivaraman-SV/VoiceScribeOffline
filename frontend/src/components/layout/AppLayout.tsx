@@ -69,6 +69,8 @@ export function AppLayout() {
     })
   }
 
+  const isWorkspace = /\/(live|review)$/.test(location.pathname)
+
   const nav = (
     <nav className="seg max-w-full overflow-x-auto" aria-label="Primary">
       {navItems.map(({ to, label, icon: Icon, end }) => (
@@ -99,7 +101,7 @@ export function AppLayout() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-canvas font-sans text-ink transition-colors duration-200">
       <header className="z-30 shrink-0 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
-        <div className="flex h-16 items-center gap-4 px-4 md:px-6">
+        <div className={cn('flex items-center gap-3 px-4 md:px-6', isWorkspace ? 'h-12' : 'h-14')}>
           <Link to="/" className="flex shrink-0 items-center" aria-label="SIMS VoiceScribe AI home">
             <img
               src="/sims-logo.png"
@@ -185,16 +187,16 @@ export function AppLayout() {
             </div>
           </div>
         </div>
-        <div className="flex justify-center px-4 pb-3 lg:hidden">{nav}</div>
+        {!isWorkspace ? <div className="flex justify-center px-4 pb-3 lg:hidden">{nav}</div> : null}
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <main className="min-h-0 flex-1 overflow-hidden">
-          <div key={location.pathname} className="h-full min-h-0 w-full animate-fade-in-up">
+          <div key={location.pathname} className={cn('h-full min-h-0 w-full', !isWorkspace && 'animate-fade-in-up')}>
             <Outlet />
           </div>
         </main>
-        {location.pathname !== '/' && (
+        {location.pathname !== '/' && !/\/(live|review)$/.test(location.pathname) && (
           <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-line/70 bg-canvas px-6 py-2 text-2xs text-ink-3">
             <span className="flex items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />

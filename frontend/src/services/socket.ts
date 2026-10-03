@@ -16,8 +16,8 @@ interface SocketHandlers {
   onStateChange: (state: ConnectionState) => void
 }
 
-const RECONNECT_DELAYS = [500, 1000, 2000, 4000, 8000]
-const HEARTBEAT_MS = 20000
+const RECONNECT_DELAYS = [2000, 4000, 8000, 12000, 20000]
+const HEARTBEAT_MS = 15000
 
 export class SessionSocket {
   private socket: WebSocket | null = null
@@ -40,6 +40,13 @@ export class SessionSocket {
 
   connect(): void {
     this.closedByUser = false
+    if (
+      this.socket?.readyState === WebSocket.OPEN ||
+      this.socket?.readyState === WebSocket.CONNECTING
+    ) {
+      return
+    }
+    this.socket?.close()
     this.handlers.onStateChange(this.attempt === 0 ? 'connecting' : 'reconnecting')
 
     const socket = new WebSocket(this.url())

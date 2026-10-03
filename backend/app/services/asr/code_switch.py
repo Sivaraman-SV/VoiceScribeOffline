@@ -264,9 +264,9 @@ class LanguagePolicy:
     # (English loanwords), so English must be clearly ahead to win ...
     english_threshold: float = 0.7
     # ... and an Indian language only needs a modest share to be decoded as such.
-    indic_threshold: float = 0.2
+    indic_threshold: float = 0.15
     short_utterance_seconds: float = 2.0
-    previous: str | None = "en"
+    previous: str | None = None
     counts: dict[str, int] = field(default_factory=dict)
     # Normalised scores behind the last decision, read by the hybrid recogniser.
     last_scores: dict[str, float] = field(default_factory=dict)

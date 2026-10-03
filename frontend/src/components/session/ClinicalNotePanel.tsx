@@ -128,6 +128,8 @@ export function ClinicalNotePanel({
   const visibleSections = SECTION_ORDER.filter(
     (key) => (!meetingMode && CORE_SECTIONS.includes(key)) || isDocumented(content[key]),
   )
+  const documentedSections = visibleSections.filter((key) => isDocumented(content[key]))
+  const quietSections = visibleSections.filter((key) => !isDocumented(content[key]))
   const visibleGroups = (Object.keys(ENTITY_GROUP_TITLES) as EntityGroupKey[])
     .map((groupKey) => ({ groupKey, entities: content[groupKey] ?? [] }))
     .filter((group) => group.entities.length > 0)
@@ -144,6 +146,20 @@ export function ClinicalNotePanel({
       setTimeout(() => setCopied(false), 2000)
     }
   }
+
+  const renderSection = (key: NoteSectionKey) => (
+    <NoteSection
+      key={key}
+      sectionKey={key}
+      label={sectionLabels[key] ?? SECTION_LABELS[key]}
+      section={content[key] ?? EMPTY_SECTION}
+      flaggedTerms={flaggedTerms}
+      changed={changedSections.includes(key)}
+      editable={editable}
+      onShowSource={onShowSource}
+      onSave={onSaveSection}
+    />
+  )
 
   const exportMarkdown = () => downloadText(markdown(), `clinical-note-${note.session_id}-v${note.version}.md`)
 
@@ -181,7 +197,7 @@ export function ClinicalNotePanel({
           </>
         }
       >
-        <div className="space-y-3.5 p-4 md:p-5">
+        <div className="space-y-2.5 p-3 md:p-4">
           <NoteFallbackBanner fallback={content.fallback} />
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-tile bg-surface-2 px-3.5 py-2 text-2xs text-ink-3">
@@ -213,19 +229,7 @@ export function ClinicalNotePanel({
             </InlineAlert>
           ) : null}
 
-          {visibleSections.map((key) => (
-            <NoteSection
-              key={key}
-              sectionKey={key}
-              label={sectionLabels[key] ?? SECTION_LABELS[key]}
-              section={content[key] ?? EMPTY_SECTION}
-              flaggedTerms={flaggedTerms}
-              changed={changedSections.includes(key)}
-              editable={editable}
-              onShowSource={onShowSource}
-              onSave={onSaveSection}
-            />
-          ))}
+          {documentedSections.map(renderSection)}
 
           {visibleGroups.map((group) => (
             <EntityGroup
@@ -235,6 +239,13 @@ export function ClinicalNotePanel({
               onShowSource={onShowSource}
             />
           ))}
+
+          {quietSections.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="px-1 pt-1 text-2xs font-semibold text-ink-3">Not discussed in this consultation</p>
+              {quietSections.map(renderSection)}
+            </div>
+          ) : null}
 
           {visibleSections.length === 0 && visibleGroups.length === 0 ? (
             <EmptyState title="Nothing documented yet" detail="Sections will automatically appear as discussion topics are mentioned." />
@@ -347,6 +358,42 @@ function NoteSection({
     }
   }
 
+  if (!documented && !editing && !needsReview) {
+    return (
+      <article className="flex items-center gap-2 rounded-control border border-line bg-surface-2/60 px-3 py-1.5">
+        <span className="h-3 w-1 shrink-0 rounded-full bg-line-strong" aria-hidden />
+        <h3 className="truncate text-xs font-semibold text-ink-2">{label}</h3>
+        <span className="hidden truncate text-2xs italic text-ink-3 sm:inline">{NOT_MENTIONED_TEXT}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void copySection()}
+            aria-label={`Copy ${label}`}
+            title={`Copy ${label}`}
+            className="btn-icon btn-icon-sm h-6 w-6"
+          >
+            {copied ? <Check className="h-3 w-3 text-tone-success-fg" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
+          </button>
+          <button
+            type="button"
+            onClick={() => onShowSource(sectionKey, draft)}
+            aria-label={`Show source for ${label}`}
+            className="btn-ghost btn-sm px-2 py-0.5 text-2xs"
+          >
+            <Link2 className="h-3 w-3" aria-hidden />
+            Sources ({evidenceCount})
+          </button>
+          {editable ? (
+            <button type="button" onClick={() => setEditing(true)} className="btn-ghost btn-sm px-2 py-0.5 text-2xs">
+              <Pencil className="h-3 w-3 text-ink-3" aria-hidden />
+              Edit
+            </button>
+          ) : null}
+        </span>
+      </article>
+    )
+  }
+
   return (
     <article
       className={cn(
@@ -357,7 +404,7 @@ function NoteSection({
         changed && 'ring-2 ring-aqua/40',
       )}
     >
-      <header className="flex flex-wrap items-center gap-2 px-4 pb-1 pt-3.5 md:px-5">
+      <header className="flex flex-wrap items-center gap-2 px-3 pb-1 pt-2.5 md:px-4">
         <span className={cn('h-4 w-1 shrink-0 rounded-full', needsReview ? 'bg-tone-warning-fg' : 'bg-aqua')} aria-hidden />
         <h3 className="text-sm font-semibold tracking-tight text-ink">{label}</h3>
         {grounded ? (

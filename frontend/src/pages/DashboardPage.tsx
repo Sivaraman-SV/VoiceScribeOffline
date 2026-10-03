@@ -85,7 +85,10 @@ export function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
+    let inFlight = false
     const load = async () => {
+      if (inFlight) return
+      inFlight = true
       try {
         const nextStats = await api.dashboard()
         if (cancelled) return
@@ -93,10 +96,12 @@ export function DashboardPage() {
         setError(null)
       } catch (err) {
         if (!cancelled) setError((err as Error).message)
+      } finally {
+        inFlight = false
       }
     }
     void load()
-    const timer = window.setInterval(load, 15000)
+    const timer = window.setInterval(load, 30000)
     return () => {
       cancelled = true
       window.clearInterval(timer)

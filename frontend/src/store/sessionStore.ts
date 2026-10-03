@@ -105,11 +105,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   attach: async (sessionId: string) => {
     const current = get()
-    if (current.sessionId === sessionId && current.socket) return
+    if (current.sessionId === sessionId && (current.socket || current.loading)) return
     current.socket?.close()
 
     set({ ...initial, sessionId, loading: true })
-    await get().refresh()
+    try {
+      await get().refresh()
+    } catch {
+      /* socket snapshot will fill in; do not leave the page spinning */
+    }
+    if (get().sessionId !== sessionId) return
 
     const socket = new SessionSocket(sessionId, {
       onEvent: (event) => get().applyEvent(event),

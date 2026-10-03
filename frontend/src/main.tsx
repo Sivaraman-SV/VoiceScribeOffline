@@ -2,8 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 
-import '@fontsource-variable/plus-jakarta-sans'
-import '@fontsource-variable/jetbrains-mono'
+import '@fontsource-variable/plus-jakarta-sans/wght.css'
 
 import { App } from './App'
 import './index.css'
