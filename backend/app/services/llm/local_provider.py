@@ -316,6 +316,7 @@ class LocalLLMProvider(LLMProvider):
                     "num_predict": max_tokens,
                     "temperature": self.temperature,
                 },
+            }
             return f"{self._ollama_root}/api/chat", payload
         return f"{self.base_url}/chat/completions", {
             "model": model,
