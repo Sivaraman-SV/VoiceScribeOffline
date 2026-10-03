@@ -9,7 +9,7 @@ import pytest
 from app.core.config import ASRProviderName, settings
 from app.services.asr.code_switch import LanguagePolicy, style_prompt
 from app.services.asr.faster_whisper_provider import FasterWhisperProvider, merge_spans
-from app.services.asr.hypothesis import DecodeQuality, foreign_script_share, whisper_problem
+from app.services.asr.hypothesis import DecodeQuality, foreign_script_share, tamil_is_garbled, whisper_problem
 from app.services.asr.indic_conformer_engine import IndicConformerEngine
 from app.services.types import AudioFrame
 
@@ -165,10 +165,21 @@ def test_short_fragments_are_joined_for_context() -> None:
         ("I have fever", "en", DecodeQuality(-1.4, 1.4), "low recognition confidence"),
         ("എനിക്ക് പനി ഉണ്ട്", "ta", DecodeQuality(-0.3, 1.4), "output in the wrong script"),
         ("எனக்கு fever இருக்கு", "ta", DecodeQuality(-0.3, 1.4), None),
+        (
+            "த்மயை் அழக்ற் நெனமாலலை கர்நிமெ்ெயரிரெயழ்வ்ெயொ",
+            "ta",
+            DecodeQuality(-0.3, 1.4),
+            "garbled Tamil",
+        ),
     ],
 )
 def test_whisper_problem_detection(text, language, quality, expected) -> None:
     assert whisper_problem(text, language, 4.0, quality) == expected
+
+
+def test_readable_tamil_is_not_garbled() -> None:
+    assert not tamil_is_garbled("எனக்கு காலை முதல் தலைவலி இருக்கு")
+    assert tamil_is_garbled("த்மயை் அழக்ற் நெனமாலலை கர்நிமெ்ெயரிரெயழ்வ்ெயொ")
 
 
 def test_code_mixed_latin_is_not_a_foreign_script() -> None:

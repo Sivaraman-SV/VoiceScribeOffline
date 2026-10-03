@@ -474,6 +474,7 @@ class SessionPipeline:
 
             stored: list[TranscriptSegment] = []
             speaker_updates: list[dict[str, Any]] = []
+            role_stage_emitted = False
 
             for segment in assembled:
                 label = segment.speaker_label or "unknown"
@@ -501,9 +502,11 @@ class SessionPipeline:
                 runtime.utterances_by_speaker.setdefault(label, []).append(segment.text)
 
                 if speaker.role_source != "HUMAN":
-                    await self._emit_stage(
-                        runtime, ProcessingStage.ROLE_ATTRIBUTION, f"Attributing role for {label}"
-                    )
+                    if not role_stage_emitted:
+                        await self._emit_stage(
+                            runtime, ProcessingStage.ROLE_ATTRIBUTION, "Attributing speaker roles"
+                        )
+                        role_stage_emitted = True
                     role, confidence = runtime.role_attribution.score(runtime.utterances_by_speaker[label])
                     if role is not SpeakerRole.UNKNOWN and (
                         speaker.role is SpeakerRole.UNKNOWN or confidence >= speaker.confidence

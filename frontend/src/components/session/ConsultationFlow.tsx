@@ -202,17 +202,36 @@ const TRANSCRIBING_STAGES = new Set([
   'TRANSCRIPT_ASSEMBLY',
 ])
 
+/** Which live-session surface to show. Transcript lines mean transcribing is done. */
+export function liveWorkspaceMode(input: {
+  recording: boolean
+  processing: boolean
+  hasTranscript: boolean
+  hasNote: boolean
+}): 'capture' | 'theater' | 'workspace' {
+  if (input.recording) return 'capture'
+  if (input.hasTranscript || input.hasNote) return 'workspace'
+  if (input.processing) return 'theater'
+  return 'capture'
+}
+
+export function containsTamil(text: string): boolean {
+  return /[\u0B80-\u0BFF]/.test(text)
+}
+
 /** Full-viewport beat after the mic stops: listen → transcribe → write the note. */
 export function ProcessingTheater({
   stage,
   stageDetail,
   uploading = false,
+  hasTranscript = false,
 }: {
   stage: string
   stageDetail?: string | null
   uploading?: boolean
+  hasTranscript?: boolean
 }) {
-  const transcribing = uploading || TRANSCRIBING_STAGES.has(stage)
+  const transcribing = !hasTranscript && (uploading || TRANSCRIBING_STAGES.has(stage))
   const step = transcribing ? 1 : 2
   const title = transcribing ? 'Transcribing the consultation' : 'Writing the clinical analysis'
   const detail =
@@ -247,6 +266,25 @@ export function ProcessingTheater({
   )
 }
 
+/** Compact left-pane beat used once the transcript is already on screen. */
+export function WritingAnalysis({ stageDetail }: { stageDetail?: string | null }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+      <div className="relative mb-6 grid h-28 w-28 place-items-center">
+        <span className="absolute inset-0 rounded-full bg-aqua/20 blur-2xl" aria-hidden />
+        <span className="absolute inset-3 rounded-full border border-aqua/50 animate-ring-out" aria-hidden />
+        <span className="relative grid h-16 w-16 place-items-center rounded-full bg-brand text-brand-fg shadow-float">
+          <Sparkles className="h-7 w-7 animate-soft-bounce" />
+        </span>
+      </div>
+      <h3 className="text-sm font-semibold text-ink">Writing the clinical analysis</h3>
+      <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-ink-3">
+        {stageDetail?.trim() || 'Findings are being structured into the ambulatory care note.'}
+      </p>
+    </div>
+  )
+}
+
 /** Transcript lines released one by one, newest sliding in, auto-following the latest line. */
 export function RevealTranscript({
   segments,
@@ -275,7 +313,13 @@ export function RevealTranscript({
               <span className="font-semibold text-ink-2">{segment.speaker_label || style.label}</span>
               <span className="mono text-ink-3">{formatTimestamp(segment.start_time)}</span>
             </div>
-            <p className="rounded-tile rounded-tl-sm bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink">
+            <p
+              className={cn(
+                'rounded-tile rounded-tl-sm bg-surface-2 px-3.5 py-2.5 text-[13px] leading-relaxed text-ink',
+                containsTamil(segment.text) && 'font-tamil',
+              )}
+              lang={containsTamil(segment.text) ? 'ta' : undefined}
+            >
               {segment.text}
             </p>
           </div>

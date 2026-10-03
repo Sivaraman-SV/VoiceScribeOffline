@@ -9,6 +9,7 @@ second recogniser, which is a CTC model and cannot invent words.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 
@@ -84,6 +85,85 @@ def _has_repetition_loop(text: str) -> bool:
     return trigrams.most_common(1)[0][1] >= 3
 
 
+_TAMIL_VIRAMA = "\u0bcd"
+_TAMIL_VOWEL_SIGNS = frozenset("ாிீுூெேைொோௌஂ")
+_TAMIL_INDEPENDENT = frozenset("அஆஇஈஉஊஎஏஐஒஓஔஃ")
+# Vowel sign then another mark, or virama then a mark: not legal Tamil spelling.
+_ILLEGAL_TAMIL_MARKS = re.compile(
+    r"[\u0bbe\u0bbf\u0bc0\u0bc1\u0bc2\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc]"
+    r"[\u0bbe\u0bbf\u0bc0\u0bc1\u0bc2\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc\u0bcd]"
+    r"|\u0bcd[\u0bbe\u0bbf\u0bc0\u0bc1\u0bc2\u0bc6\u0bc7\u0bc8\u0bca\u0bcb\u0bcc\u0bcd]"
+)
+# Frequent clinic / function words. Real Tamil almost always contains one of these;
+# Whisper's invented-script soup does not.
+_KNOWN_TAMIL = (
+    "எனக்கு",
+    "இருக்கு",
+    "இருக்கும்",
+    "இல்லை",
+    "இல்ல",
+    "வலி",
+    "தலைவலி",
+    "நான்",
+    "வந்து",
+    "போய்",
+    "சரி",
+    "ஆனா",
+    "ஆனால்",
+    "கொஞ்சம்",
+    "ரொம்ப",
+    "வயிறு",
+    "நெஞ்சு",
+    "காய்ச்சல்",
+    "இருமல்",
+    "மாத்திரை",
+    "டாக்டர்",
+    "மருந்து",
+    "காலை",
+    "மாலை",
+    "இரவு",
+    "நாள்",
+    "நேத்து",
+    "அப்போ",
+    "இப்போ",
+    "அப்புறம்",
+    "பசி",
+    "தூக்கம்",
+    "மூச்சு",
+    "இரத்தம்",
+    "சர்க்கரை",
+)
+
+
+def tamil_is_garbled(text: str) -> bool:
+    """True when Tamil-script output has no real words and too many virama clusters.
+
+    Turbo Whisper often emits Tamil letters that look plausible at a glance
+    (lots of ், almost no readable words). That text should be rejected so
+    IndicConformer or a second decode can replace it.
+    """
+    letters = [char for char in text if 0x0B80 <= ord(char) <= 0x0BFF]
+    if len(letters) < 8:
+        return False
+    known = any(word in text for word in _KNOWN_TAMIL)
+    illegal = len(_ILLEGAL_TAMIL_MARKS.findall(text))
+    if illegal >= 2:
+        return True
+    if known:
+        return False
+    if illegal >= 1 and len(letters) >= 12:
+        return True
+    virama = sum(1 for char in letters if char == _TAMIL_VIRAMA)
+    vowels = sum(1 for char in letters if char in _TAMIL_VOWEL_SIGNS or char in _TAMIL_INDEPENDENT)
+    consonants = len(letters) - virama - vowels
+    if consonants <= 0:
+        return True
+    jammed_latin = bool(re.search(r"[A-Za-z]{7,}", text.replace(" ", "")))
+    return (virama / len(letters) >= 0.16 and vowels / consonants < 0.55) or (
+        len(letters) >= 16 and jammed_latin
+    )
+
+
 def whisper_problem(text: str, language: str | None, duration: float, quality: DecodeQuality) -> str | None:
     """Why this Whisper output should not be trusted, or ``None`` if it looks sound."""
     text = (text or "").strip()
@@ -97,6 +177,8 @@ def whisper_problem(text: str, language: str | None, duration: float, quality: D
         return "low recognition confidence"
     if foreign_script_share(text, language) > _MAX_FOREIGN_SCRIPT_SHARE:
         return "output in the wrong script"
+    if language == "ta" and tamil_is_garbled(text):
+        return "garbled Tamil"
     return None
 
 

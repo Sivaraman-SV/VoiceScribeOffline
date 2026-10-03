@@ -2,8 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Activity, AudioLines, FileText, Sparkles, Stethoscope } from 'lucide-react'
 
-import { FlowStepper, ProcessingTheater, RecordingHero, RevealTranscript, useReveal } from '@/components/session/ConsultationFlow'
-import { ConsultationPipelineAnimation } from '@/components/session/ConsultationPipelineAnimation'
+import {
+  FlowStepper,
+  ProcessingTheater,
+  RecordingHero,
+  RevealTranscript,
+  WritingAnalysis,
+  liveWorkspaceMode,
+  useReveal,
+} from '@/components/session/ConsultationFlow'
 import { NoteFallbackBanner, StreamingNotePreview } from '@/components/session/NoteStatusBlocks'
 import { VitalsDictationModal } from '@/components/session/VitalsDictationModal'
 import { InlineAlert } from '@/components/ui/primitives'
@@ -17,8 +24,6 @@ import type { NoteSectionKey } from '@/types'
 import { cn } from '@/utils/cn'
 
 type MobileTab = 'transcript' | 'note' | 'findings'
-
-const TRANSCRIBING_STAGES = ['AUDIO_PREPROCESSING', 'ASR', 'DIARIZATION', 'ROLE_ATTRIBUTION', 'TRANSCRIPT_ASSEMBLY']
 
 function sectionText(value: unknown): string {
   if (typeof value === 'string') return value
@@ -194,40 +199,27 @@ export function LiveSessionPage() {
   }, [note])
 
   const hasNoteContent = mentionedSections.length > 0
-
-  const phase: 'capture' | 'processing' | 'report' = recorder.recording
-    ? 'capture'
-    : isProcessing
-      ? 'processing'
-      : hasNoteContent || segments.length > 0
-        ? 'report'
-        : 'capture'
+  const hasTranscript = segments.length > 0
+  const workspace = liveWorkspaceMode({
+    recording: recorder.recording,
+    processing: isProcessing,
+    hasTranscript,
+    hasNote: hasNoteContent,
+  })
+  const phase: 'capture' | 'processing' | 'report' =
+    workspace === 'capture' ? 'capture' : workspace === 'theater' ? 'processing' : 'report'
 
   useEffect(() => {
-    if (phase === 'processing') setAnimateFlow(true)
-  }, [phase])
+    if (workspace !== 'capture') setAnimateFlow(true)
+  }, [workspace])
 
   const transcriptShown = useReveal(segments.length, 240, animateFlow)
-  const transcriptDone = transcriptShown >= segments.length
-  const sectionsShown = useReveal(
-    phase === 'report' && transcriptDone ? mentionedSections.length : 0,
-    420,
-    animateFlow,
-  )
-  const sectionsDone = phase === 'report' && sectionsShown >= mentionedSections.length
+  const sectionsShown = useReveal(hasNoteContent ? mentionedSections.length : 0, 420, animateFlow)
+  const sectionsDone = hasNoteContent && sectionsShown >= mentionedSections.length
   const entitiesShown = useReveal(sectionsDone ? entities.length : 0, 110, animateFlow)
 
-  const flowStep =
-    phase === 'processing'
-      ? segments.length === 0 || TRANSCRIBING_STAGES.includes(stage)
-        ? 1
-        : 2
-      : !transcriptDone
-        ? 1
-        : !sectionsDone
-          ? 2
-          : 3
-  const reportReady = phase === 'report' && flowStep === 3
+  const flowStep = !hasTranscript ? 1 : !hasNoteContent ? 2 : 3
+  const reportReady = hasNoteContent && !isProcessing
 
   if (loadError) {
     return (
@@ -299,7 +291,7 @@ export function LiveSessionPage() {
     )
   }
 
-  if (phase === 'processing' && !hasNoteContent) {
+  if (workspace === 'theater') {
     return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-canvas text-ink">
         <header className="flex h-12 shrink-0 items-center justify-between gap-4 px-4 md:px-5">
@@ -311,6 +303,7 @@ export function LiveSessionPage() {
             stage={stage}
             stageDetail={stageDetail}
             uploading={recorder.state === 'uploading'}
+            hasTranscript={hasTranscript}
           />
         </main>
       </div>
@@ -399,15 +392,6 @@ export function LiveSessionPage() {
           <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-5">
             {isProcessing && streamingSections ? (
               <StreamingNotePreview sections={streamingSections} />
-            ) : isProcessing || (hasNoteContent && !transcriptDone) ? (
-              <div className="flex h-full flex-col items-center justify-center">
-                <ConsultationPipelineAnimation
-                  stage={stage}
-                  stageDetail={stageDetail}
-                  isUploading={recorder.state === 'uploading'}
-                  className="p-0"
-                />
-              </div>
             ) : hasNoteContent ? (
               <div className="space-y-3">
                 <NoteFallbackBanner fallback={note?.content.fallback} />
@@ -454,6 +438,8 @@ export function LiveSessionPage() {
                   </div>
                 ) : null}
               </div>
+            ) : hasTranscript ? (
+              <WritingAnalysis stageDetail={stageDetail} />
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <div className="relative mb-4 grid h-16 w-16 place-items-center rounded-full bg-aqua-soft text-brand">

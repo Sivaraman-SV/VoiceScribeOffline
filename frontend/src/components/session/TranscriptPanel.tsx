@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { MessageSquare, Layers, Radio, Sparkles } from 'lucide-react'
 
+import { containsTamil } from '@/components/session/ConsultationFlow'
 import { EmptyState, Panel, StatusDot } from '@/components/ui/primitives'
 import { ROLE_STYLES } from '@/constants'
 import type { EvidenceLink, Speaker, TranscriptSegment } from '@/types'
@@ -124,7 +125,15 @@ export function TranscriptPanel({
                         ) : null}
                       </span>
                     </div>
-                    <p className="pl-0.5 text-sm font-normal leading-relaxed text-ink">{segment.text}</p>
+                    <p
+                      className={cn(
+                        'pl-0.5 text-sm font-normal leading-relaxed text-ink',
+                        containsTamil(segment.text) && 'font-tamil',
+                      )}
+                      lang={containsTamil(segment.text) ? 'ta' : undefined}
+                    >
+                      {segment.text}
+                    </p>
                   </button>
                 </li>
               )

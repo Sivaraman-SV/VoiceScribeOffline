@@ -104,6 +104,8 @@ export default {
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans Variable"', '"Plus Jakarta Sans"', 'Inter', 'Segoe UI', 'system-ui', 'sans-serif'],
+        tamil: ['"Nirmala UI"', 'Latha', '"Noto Sans Tamil"', '"Tamil MN"', 'ui-sans-serif', 'sans-serif'],
+        hindi: ['"Nirmala UI"', 'Mangal', '"Noto Sans Devanagari"', 'ui-sans-serif', 'sans-serif'],
         mono: ['ui-monospace', 'Consolas', 'monospace'],
       },
       fontSize: {

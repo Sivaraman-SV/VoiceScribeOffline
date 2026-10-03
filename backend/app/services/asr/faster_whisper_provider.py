@@ -25,7 +25,7 @@ from app.core.config import settings
 from app.core.logging import get_logger, track_duration
 from app.services.asr.base import ASRProvider
 from app.services.asr.code_switch import LanguagePolicy, clean_asr_text, parse_languages, style_prompt
-from app.services.asr.hypothesis import DecodeQuality, conformer_plausible, whisper_problem
+from app.services.asr.hypothesis import DecodeQuality, conformer_plausible, tamil_is_garbled, whisper_problem
 from app.services.asr.indic_conformer_engine import IndicConformerEngine
 from app.services.asr.medical_normalizer import normalize_medical_transcript
 from app.services.types import ASRSegment, AudioFrame
@@ -245,6 +245,22 @@ class FasterWhisperProvider(ASRProvider):
                 segments, prompt = self._decode_whisper(model, piece, language)
                 raw_text = " ".join((segment.text or "").strip() for segment in segments).strip()
                 problem = whisper_problem(raw_text, language, duration, self._quality(segments))
+                if problem == "garbled Tamil":
+                    retry_segments, retry_prompt = self._decode_whisper(model, piece, None)
+                    retry_text = " ".join(
+                        (segment.text or "").strip() for segment in retry_segments
+                    ).strip()
+                    retry_problem = whisper_problem(
+                        retry_text, None, duration, self._quality(retry_segments)
+                    )
+                    if retry_text and (not retry_problem or not tamil_is_garbled(retry_text)):
+                        segments, prompt, raw_text, problem = (
+                            retry_segments,
+                            retry_prompt,
+                            retry_text,
+                            retry_problem,
+                        )
+                        language = None
                 rescue_language = conformer_language or self._rescue_language()
                 rescued = None
                 if problem and rescue_language and self._conformer_handles(rescue_language):
