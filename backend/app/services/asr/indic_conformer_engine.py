@@ -82,7 +82,15 @@ class IndicConformerEngine:
                     self.model_name, trust_remote_code=True, token=settings.huggingface_token or None
                 )
             except Exception as exc:
-                self.failed = str(exc) or type(exc).__name__
+                detail = str(exc) or type(exc).__name__
+                if not settings.huggingface_token and (
+                    "not a valid model identifier" in detail or "401" in detail or "gated" in detail.lower()
+                ):
+                    detail = (
+                        f"{detail} — set Kaggle secret HUGGINGFACE_TOKEN after accepting "
+                        f"https://huggingface.co/{self.model_name}"
+                    )
+                self.failed = detail
                 raise IndicConformerEngineUnavailable(self.failed) from exc
             _MODELS[self.model_name] = model
             return model
