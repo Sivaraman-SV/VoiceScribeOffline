@@ -47,3 +47,6 @@ exports/
 *.log
 .env.gemma
 install-logs/
+
+# --- doctor voice samples (personal data) ------------------------------------
+voices/

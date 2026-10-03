@@ -1,0 +1,14 @@
+# Optional: AI4Bharat IndicConformer-600M second pass for Tamil / Hindi speech
+# (ASR_SECOND_PASS=indic_conformer). Installed by INSTALL_A_TO_Z.bat when that
+# setting is on. CPU-only: on Windows PyPI torch wheels are CPU builds, and the
+# CPU onnxruntime is used, so no CUDA Toolkit or CUDA DLLs are involved.
+#
+# The model is gated on Hugging Face: accept its terms at
+# https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual and put a
+# read token in HUGGINGFACE_TOKEN. After the first download it runs offline.
+torch==2.8.*
+torchaudio==2.8.*
+transformers>=4.44,<5
+onnxruntime==1.20.1
+onnx==1.20.1
+huggingface_hub>=0.24

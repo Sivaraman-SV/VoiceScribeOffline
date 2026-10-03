@@ -7,7 +7,10 @@ into Whisper's repetition and hallucination loops. It does not cover English and
 writes English loanwords in the native script, which is why Whisper keeps the
 English-heavy utterances.
 
-Needs ``transformers``, ``torchaudio`` and ``onnxruntime-gpu`` on the ASR host.
+Needs ``backend/requirements-indic.txt`` (CPU torch, torchaudio, transformers,
+onnxruntime). The model is gated on Hugging Face: the first download needs a
+``HUGGINGFACE_TOKEN`` that accepted its terms; after that it loads from the local
+cache with no network.
 """
 
 from __future__ import annotations
@@ -74,21 +77,27 @@ class IndicConformerEngine:
                 from transformers import AutoModel  # type: ignore import-not-found
             except ImportError as exc:
                 raise IndicConformerEngineUnavailable(
-                    "IndicConformer needs transformers, torchaudio and onnxruntime-gpu on the ASR host."
+                    "IndicConformer needs the packages in backend/requirements-indic.txt "
+                    "(pip install -r requirements-indic.txt)."
                 ) from exc
             logger.info("loading_indic_conformer", extra={"model": self.model_name, "decoder": self.decoder})
+            token = settings.huggingface_token or None
             try:
-                model = AutoModel.from_pretrained(
-                    self.model_name, trust_remote_code=True, token=settings.huggingface_token or None
-                )
+                try:
+                    # Cache first: once downloaded, the hospital PC never needs the network.
+                    model = AutoModel.from_pretrained(
+                        self.model_name, trust_remote_code=True, token=token, local_files_only=True
+                    )
+                except OSError:
+                    model = AutoModel.from_pretrained(self.model_name, trust_remote_code=True, token=token)
             except Exception as exc:
                 detail = str(exc) or type(exc).__name__
                 if not settings.huggingface_token and (
                     "not a valid model identifier" in detail or "401" in detail or "gated" in detail.lower()
                 ):
                     detail = (
-                        f"{detail} — set Kaggle secret HUGGINGFACE_TOKEN after accepting "
-                        f"https://huggingface.co/{self.model_name}"
+                        f"{detail} — accept the terms at https://huggingface.co/{self.model_name}, "
+                        "set HUGGINGFACE_TOKEN in .env, and rerun INSTALL_A_TO_Z.bat to download it"
                     )
                 self.failed = detail
                 raise IndicConformerEngineUnavailable(self.failed) from exc

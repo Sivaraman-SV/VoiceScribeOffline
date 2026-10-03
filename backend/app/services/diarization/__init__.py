@@ -1,7 +1,8 @@
 """Diarization provider selection.
 
-Demo Mode uses the script-hinted mock diarizer. Real recordings default to local
-two-speaker clustering so audio never has to go to Gemini for speaker labels.
+Demo Mode uses the script-hinted mock diarizer. Real recordings default to neural
+speaker embeddings on CPU (sherpa-onnx), falling back to local pitch clustering, so
+audio never has to go to Gemini for speaker labels.
 pyannote remains an optional upgrade; Gemini diarization is only used when
 explicitly configured (paired with Gemini ASR).
 """
@@ -36,7 +37,22 @@ def build_diarization_provider(audio_source: AudioSource | None = None) -> Diari
         except PyannoteUnavailable as exc:  # pragma: no cover - optional dependency
             logger.warning(
                 "pyannote_unavailable_falling_back_to_local", 
-                extra={"error": str(exc), "message": "Pyannote is not available. Using local diarization fallback."}
+                extra={"error": str(exc)}
+            )
+            return LocalDiarizationProvider()
+
+    if settings.diarization_provider is DiarizationProviderName.NEURAL:
+        from app.services.diarization.neural_provider import (
+            NeuralDiarizationProvider,
+            NeuralDiarizationUnavailable,
+        )
+
+        try:
+            return NeuralDiarizationProvider()
+        except NeuralDiarizationUnavailable as exc:
+            logger.warning(
+                "neural_diarization_unavailable_falling_back_to_local",
+                extra={"error": str(exc)},
             )
             return LocalDiarizationProvider()
 

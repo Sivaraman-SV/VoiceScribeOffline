@@ -65,7 +65,7 @@ Output is an `AudioFrame`: canonical PCM16 samples plus speech ratio, RMS dBFS a
 
 ### 4.3 Diarization (`services/diarization/`)
 
-`MockDiarizationProvider` assigns speaker clusters from script hints when present, otherwise from a zero-crossing pitch estimate. `PyannoteDiarizationProvider` lazily imports `pyannote.audio` and fails with a clear message if the model or Hugging Face token is missing. Output is a list of `DiarizationTurn(speaker_id, start_time, end_time, confidence)`.
+`MockDiarizationProvider` assigns speaker clusters from script hints when present, otherwise from a zero-crossing pitch estimate. `NeuralDiarizationProvider` (default for real audio) embeds each utterance with a WeSpeaker ResNet34 ONNX model through sherpa-onnx on CPU, re-clusters every utterance of the session (a group is split only when its halves are `DIARIZATION_SPLIT_MARGIN` more alike inside than across), and keeps labels stable by majority vote; with `DOCTOR_VOICE_SAMPLE` the doctor's voice is pinned to `speaker_0` and roles come from the audio. Because its labels come from voice identity it sets `separates_voices`, which stops the pipeline relabelling single utterances from their wording. `PyannoteDiarizationProvider` lazily imports `pyannote.audio` and fails with a clear message if the model or Hugging Face token is missing. Output is a list of `DiarizationTurn(speaker_id, start_time, end_time, confidence)`.
 
 If diarization fails, speakers become `UNKNOWN` rather than the stage aborting.
 
@@ -226,7 +226,7 @@ The live screen is a three-column clinical workstation: transcript, note, intell
 | Capability | Interface | Real implementation | Enable with |
 | --- | --- | --- | --- |
 | ASR | `ASRProvider` | `FasterWhisperProvider` (default: `large-v3-turbo` int8) | `ASR_PROVIDER=faster_whisper` |
-| Diarization | `DiarizationService` | Local clustering (default). `PyannoteDiarizationProvider` needs extra VRAM | `DIARIZATION_PROVIDER=local` |
+| Diarization | `DiarizationService` | `NeuralDiarizationProvider` (default, CPU). Pitch clustering fallback; `PyannoteDiarizationProvider` needs extra VRAM | `DIARIZATION_PROVIDER=neural` |
 | LLM | `LLMProvider` | `LocalLLMProvider` → Ollama `gemma4:e4b` (fallback `gemma4:e2b`) | `AI_MODE=local` |
 | Terminology | `TerminologyProvider` | not implemented | connect a terminology server |
 | Export | `FHIRAdapter` | FHIR-shaped | extend for a specific FHIR server |

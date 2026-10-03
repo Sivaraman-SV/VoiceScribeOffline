@@ -7,8 +7,11 @@
   (LOCAL_LLM_MODEL + LOCAL_LLM_FALLBACK_MODELS), frontend npm packages.
   Then launches the app.
 
+  Also: the speaker recognition model (sherpa-onnx, CPU) and, for Tamil / Hindi,
+  IndicConformer with CPU-only PyTorch (asks once for a Hugging Face token).
+
   Whisper stays on CPU. Ollama/Gemma uses the NVIDIA GPU. No CUDA Toolkit,
-  no PyTorch, no pyannote.
+  no CUDA PyTorch, no pyannote.
 #>
 [CmdletBinding()]
 param(
@@ -63,6 +66,21 @@ function Get-EnvSetting($key, $default) {
     return $default
 }
 
+# Writes KEY=value into both .env files the backend reads (repo root and backend/).
+function Set-EnvSetting($key, $value) {
+    foreach ($file in @((Join-Path $RepoRoot ".env"), (Join-Path $RepoRoot "backend\.env"))) {
+        if (-not (Test-Path $file)) { continue }
+        $lines = @(Get-Content $file)
+        $found = $false
+        $lines = $lines | ForEach-Object {
+            if ($_ -match "^\s*$key\s*=") { $found = $true; "$key=$value" } else { $_ }
+        }
+        if (-not $found) { $lines += "$key=$value" }
+        # UTF-8 without BOM, as python-dotenv expects.
+        [IO.File]::WriteAllLines($file, [string[]]$lines)
+    }
+}
+
 function Test-Cmd($name) {
     return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
@@ -96,7 +114,7 @@ Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "  VoiceScribe Offline  |  A-to-Z installer for a friend's Windows PC" -ForegroundColor Cyan
 Write-Host "  Python + Node + Ollama + Gemma 4 + CPU Whisper + app launch" -ForegroundColor Cyan
-Write-Host "  No CUDA Toolkit. No PyTorch. GPU is used only by Ollama." -ForegroundColor Cyan
+Write-Host "  No CUDA Toolkit. No CUDA PyTorch. GPU is used only by Ollama." -ForegroundColor Cyan
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host "  Folder: $RepoRoot"
 Write-Host "  Log:    $LogFile"
@@ -222,7 +240,7 @@ foreach ($target in @((Join-Path $RepoRoot ".env"), (Join-Path $Backend ".env"))
 }
 
 # --- 6. Python venv + CPU Whisper (never PyTorch/CUDA) ----------------------
-Write-Step 6 8 "Python packages (CPU Faster-Whisper, no CUDA pip extras)"
+Write-Step 6 8 "Python packages (CPU Whisper, speaker model, Tamil / Hindi model)"
 Set-Location $Backend
 if (-not (Test-Path $VenvPython)) {
     & $script:Py -m venv .venv
@@ -254,6 +272,69 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warn "Notes will still work if Ollama is up; transcription needs this import to succeed."
 } else {
     Write-Ok "Faster-Whisper large-v3-turbo is cached on CPU (first transcribe will be fast)"
+}
+
+# Speaker embedding model for DIARIZATION_PROVIDER=neural (~26 MB, CPU).
+$speakerRel = Get-EnvSetting "SPEAKER_EMBEDDING_MODEL" "models/speaker/wespeaker_en_voxceleb_resnet34_LM.onnx"
+$speakerModel = Join-Path $Backend $speakerRel
+if (-not (Test-Path $speakerModel)) {
+    Write-Host "  Downloading speaker recognition model..."
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $speakerModel) | Out-Null
+    $speakerUrl = "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/" + (Split-Path -Leaf $speakerModel)
+    try {
+        Invoke-WebRequest -Uri $speakerUrl -OutFile $speakerModel -UseBasicParsing
+    } catch {
+        Remove-Item $speakerModel -ErrorAction SilentlyContinue
+    }
+}
+if (Test-Path $speakerModel) {
+    Write-Ok "Speaker model ready (Doctor / Patient voices told apart on CPU)"
+} else {
+    Write-Warn "Speaker model download failed; speakers fall back to pitch clustering. Rerun the installer to retry."
+}
+
+# IndicConformer second pass for Tamil / Hindi (ASR_SECOND_PASS=indic_conformer).
+$secondPassModel = Get-EnvSetting "ASR_SECOND_PASS_MODEL" "ai4bharat/indic-conformer-600m-multilingual"
+if ((Get-EnvSetting "ASR_SECOND_PASS" "indic_conformer") -eq "indic_conformer") {
+    Write-Host "  Installing IndicConformer packages for Tamil / Hindi (CPU PyTorch, ~1 GB)..."
+    & $VenvPip install -r (Join-Path $Backend "requirements-indic.txt")
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "IndicConformer packages failed to install; Whisper alone will handle Tamil / Hindi."
+    } else {
+        $hfToken = Get-EnvSetting "HUGGINGFACE_TOKEN" ""
+        if (-not $hfToken) {
+            Write-Host ""
+            Write-Host "  The Tamil / Hindi model is free but gated on Hugging Face. One time only:" -ForegroundColor Yellow
+            Write-Host "    1. Sign in and click 'Agree' at https://huggingface.co/$secondPassModel" -ForegroundColor Yellow
+            Write-Host "    2. Create a Read token at https://huggingface.co/settings/tokens" -ForegroundColor Yellow
+            $hfToken = "$(Read-Host "  Paste the token here (or press Enter to skip)")".Trim()
+            if ($hfToken) {
+                Set-EnvSetting "HUGGINGFACE_TOKEN" $hfToken
+                Write-Ok "Token saved to .env"
+            }
+        }
+        if ($hfToken) {
+            Write-Host "  Downloading $secondPassModel (first time only)..."
+            $env:HUGGINGFACE_TOKEN = $hfToken
+            $indicCheck = @"
+import os
+from transformers import AutoModel
+AutoModel.from_pretrained('$secondPassModel', trust_remote_code=True, token=os.environ['HUGGINGFACE_TOKEN'])
+print('INDIC_OK')
+"@
+            $indicCheckPath = Join-Path $env:TEMP "voicescribe_indic_check.py"
+            Set-Content -Path $indicCheckPath -Value $indicCheck -Encoding UTF8
+            & $VenvPython $indicCheckPath
+            Remove-Item Env:\HUGGINGFACE_TOKEN -ErrorAction SilentlyContinue
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warn "IndicConformer download failed. Check you clicked 'Agree' on the model page, then rerun."
+            } else {
+                Write-Ok "IndicConformer is cached; Tamil / Hindi speech now runs offline"
+            }
+        } else {
+            Write-Warn "Skipped IndicConformer; Whisper alone will handle Tamil / Hindi. Rerun the installer to add it."
+        }
+    }
 }
 
 & $VenvPython -c "import asyncio; from app.core.database import init_database, dispose_database; asyncio.run(init_database()); asyncio.run(dispose_database()); print('DB_OK')"

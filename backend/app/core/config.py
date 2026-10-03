@@ -39,6 +39,7 @@ class ASRProviderName(str, Enum):
 class DiarizationProviderName(str, Enum):
     GEMINI = "gemini"
     LOCAL = "local"
+    NEURAL = "neural"
     PYANNOTE = "pyannote"
     CONVERSATIONAL = "conversational"
     MOCK = "mock"
@@ -117,7 +118,9 @@ class Settings(BaseSettings):
     # --- pipeline providers ------------------------------------------------
     # "auto" picks CUDA float16 when a GPU is present and CPU int8 otherwise.
     asr_provider: ASRProviderName = ASRProviderName.FASTER_WHISPER
-    diarization_provider: DiarizationProviderName = DiarizationProviderName.LOCAL
+    # neural = sherpa-onnx speaker embeddings on CPU; falls back to local pitch
+    # clustering when sherpa-onnx or the model file is missing.
+    diarization_provider: DiarizationProviderName = DiarizationProviderName.NEURAL
     faster_whisper_model: str = "large-v3-turbo"
     parakeet_model: str = "nvidia/parakeet-ctc-0.6b"
     asr_device: str = "auto"
@@ -149,6 +152,15 @@ class Settings(BaseSettings):
     asr_second_pass_model: str = "ai4bharat/indic-conformer-600m-multilingual"
     asr_second_pass_decoder: str = "ctc"
     pyannote_model: str = "pyannote/speaker-diarization-3.1"
+    # Neural diarization (DIARIZATION_PROVIDER=neural). Relative paths are under backend/.
+    speaker_embedding_model: str = "models/speaker/wespeaker_en_voxceleb_resnet34_LM.onnx"
+    diarization_max_speakers: int = 2
+    # Two groups of utterances are separate voices only when they are this much
+    # more alike inside than across (mean cosine similarity). Lower splits more.
+    diarization_split_margin: float = 0.12
+    diarization_num_threads: int = 2
+    # Optional WAV (3-30 s) of the doctor speaking. Pins that voice as the doctor.
+    doctor_voice_sample: str = ""
     huggingface_token: str | None = None
 
     # Gemini audio transcription. The ASR model is configurable separately from

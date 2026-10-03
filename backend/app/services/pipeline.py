@@ -450,8 +450,10 @@ class SessionPipeline:
 
             # Audio diarization found only one speaker: split turns by
             # conversational role instead (offline unless Gemini is configured).
+            # A voice-identity diarizer is trusted: one label means one voice.
+            separates_voices = runtime.diarizer.separates_voices
             unique_speakers = {seg.speaker_label for seg in assembled}
-            if len(unique_speakers) <= 1 and len(assembled) >= 2:
+            if not separates_voices and len(unique_speakers) <= 1 and len(assembled) >= 2:
                 await self._emit_stage(
                     runtime, ProcessingStage.ROLE_ATTRIBUTION, "Splitting speakers by conversation",
                 )
@@ -475,6 +477,7 @@ class SessionPipeline:
             stored: list[TranscriptSegment] = []
             speaker_updates: list[dict[str, Any]] = []
             role_stage_emitted = False
+            known_roles = runtime.diarizer.known_roles(runtime.session_id)
 
             for segment in assembled:
                 label = segment.speaker_label or "unknown"
@@ -482,9 +485,11 @@ class SessionPipeline:
                     db, session.id, label, confidence=segment.diarization_confidence
                 )
 
-                # Utterance-level conversational role check (Doctor vs Patient)
+                # Utterance-level conversational role check (Doctor vs Patient).
+                # Skipped when labels come from voice identity: a patient asking
+                # a question is still the patient.
                 utt_role, utt_conf = runtime.role_attribution.score_utterance(segment.text)
-                if (label in ("speaker_0", "unknown") or speaker.role_source != "HUMAN") and utt_role is not SpeakerRole.UNKNOWN and utt_conf >= 0.65:
+                if not separates_voices and (label in ("speaker_0", "unknown") or speaker.role_source != "HUMAN") and utt_role is not SpeakerRole.UNKNOWN and utt_conf >= 0.65:
                     target_label = "speaker_0" if utt_role is SpeakerRole.DOCTOR else ("speaker_1" if utt_role is SpeakerRole.PATIENT else label)
                     if target_label != label:
                         label = target_label
@@ -501,7 +506,16 @@ class SessionPipeline:
 
                 runtime.utterances_by_speaker.setdefault(label, []).append(segment.text)
 
-                if speaker.role_source != "HUMAN":
+                known_role = known_roles.get(label)
+                if known_role is not None and speaker.role_source != "HUMAN":
+                    # Enrolled doctor voice: the role is known from the audio.
+                    if speaker.role is not known_role:
+                        speaker.role = known_role
+                        speaker.confidence = 0.99
+                        speaker_updates.append(
+                            {"id": str(speaker.id), "label": label, "role": known_role.value, "confidence": 0.99}
+                        )
+                elif speaker.role_source != "HUMAN":
                     if not role_stage_emitted:
                         await self._emit_stage(
                             runtime, ProcessingStage.ROLE_ATTRIBUTION, "Attributing speaker roles"

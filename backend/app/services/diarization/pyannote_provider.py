@@ -26,6 +26,7 @@ class PyannoteUnavailable(RuntimeError):
 class PyannoteDiarizationProvider(DiarizationService):
     name = "pyannote"
     is_mock = False
+    separates_voices = True
 
     def __init__(self, model_name: str | None = None, token: str | None = None) -> None:
         self.model_name = model_name or settings.pyannote_model

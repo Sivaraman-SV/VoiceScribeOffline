@@ -57,7 +57,7 @@ What you can do in the running application:
               ┌────────────┴────────────┐
       ┌───────▼───────┐         ┌───────▼────────┐
       │     ASR       │         │  DIARIZATION   │
-      │ mock / faster │         │ mock / pyannote│
+      │ mock / faster │         │ neural / local │
       │   -whisper    │         │                │
       └───────┬───────┘         └───────┬────────┘
               └────────────┬────────────┘
@@ -97,7 +97,7 @@ The rule-based clinical NLP layer runs **before** the LLM and is also used **aft
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async), Alembic, Uvicorn, WebSockets |
 | Database | PostgreSQL 16 (SQLite fallback for local development) |
 | AI | Offline: Gemma 4 (E4B default, E2B fallback, 12B quality tier) via Ollama. Optional Google Gemini via `google-genai` |
-| ASR / diarization | Faster-Whisper `large-v3-turbo` int8 + local speaker clustering (pyannote optional, not for 6 GB GPUs) |
+| ASR / diarization | Faster-Whisper `large-v3-turbo` int8 (+ IndicConformer for Tamil / Hindi) + neural speaker embeddings via sherpa-onnx on CPU, with optional doctor voice enrolment |
 | Export | JSON, PDF (ReportLab), FHIR R4-shaped JSON bundle |
 | Tests | pytest + pytest-asyncio (backend), Vitest + Testing Library (frontend) |
 
