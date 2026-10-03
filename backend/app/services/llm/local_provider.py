@@ -316,9 +316,6 @@ class LocalLLMProvider(LLMProvider):
                     "num_predict": max_tokens,
                     "temperature": self.temperature,
                 },
-            }
-            if "gemma4" in model.lower():
-                payload["think"] = False
             return f"{self._ollama_root}/api/chat", payload
         return f"{self.base_url}/chat/completions", {
             "model": model,
