@@ -129,6 +129,7 @@ class Settings(BaseSettings):
     tanglish_med_model: str = "surendirakrishna/OHM-Tanglish-MedASR-1.7B-v152"
     hinglish_whisper_model: str = "Oriserve/Whisper-Hindi2Hinglish-Apex"
     indic_conformer_model: str = "ai4bharat/indicconformer_stt_multi_hybrid_rnnt_600m"
+    asr_second_pass: str = "none"
     # Enforce pure English transcription and clinical prompt biasing
     indic_asr_language: str = "en"
     asr_languages: str = "en"

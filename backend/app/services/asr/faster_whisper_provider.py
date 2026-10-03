@@ -164,7 +164,7 @@ class FasterWhisperProvider(ASRProvider):
         # conversation has been in.
         self.policy = LanguagePolicy(allowed=self.languages)
         self.second_pass = second_pass
-        if self.second_pass is None and settings.asr_second_pass == "indic_conformer" and self._expects_indic():
+        if self.second_pass is None and getattr(settings, "asr_second_pass", "none") == "indic_conformer" and self._expects_indic():
             self.second_pass = IndicConformerEngine()
         self._model: Any | None = None
 
