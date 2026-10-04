@@ -25,7 +25,13 @@ from app.core.config import settings
 from app.core.logging import get_logger, track_duration
 from app.services.asr.base import ASRProvider
 from app.services.asr.code_switch import LanguagePolicy, clean_asr_text, parse_languages, style_prompt
-from app.services.asr.hypothesis import DecodeQuality, conformer_plausible, tamil_is_garbled, whisper_problem
+from app.services.asr.hypothesis import (
+    DecodeQuality,
+    compression_limit,
+    conformer_plausible,
+    tamil_is_garbled,
+    whisper_problem,
+)
 from app.services.asr.indic_conformer_engine import IndicConformerEngine
 from app.services.asr.medical_normalizer import normalize_medical_transcript
 from app.services.types import ASRSegment, AudioFrame
@@ -51,6 +57,11 @@ _TEMPERATURES = (0.0, 0.2, 0.4, 0.6)
 _ENGLISH_HEAVY = 0.5
 _CONFORMER_CONFIDENCE = 0.85
 _REJECTED_CONFIDENCE = 0.35
+# ASR_TAMIL_MODEL checkpoints were fine-tuned on plain Tamil transcripts without
+# timestamp tokens: decoding with timestamps or the code-mixed style prompt
+# pushes them off their training distribution.
+_TAMIL_MODEL_PROMPT = False
+_TAMIL_MODEL_TIMESTAMPS = False
 
 # One model per (name, device, compute type) for the whole process. Loading
 # large-v3-turbo takes several seconds and ~1.5 GB, so it must not be repeated
@@ -162,6 +173,7 @@ class FasterWhisperProvider(ASRProvider):
         language: str | None = None,
         languages: str | None = None,
         second_pass: IndicConformerEngine | None = None,
+        tamil_model: str | None = None,
     ) -> None:
         self.model_name = model_name or settings.faster_whisper_model
         self.device = device or settings.asr_device
@@ -183,12 +195,22 @@ class FasterWhisperProvider(ASRProvider):
         self.second_pass = second_pass
         if self.second_pass is None and settings.asr_second_pass == "indic_conformer" and self._expects_indic():
             self.second_pass = IndicConformerEngine()
+        self.tamil_model_name = (tamil_model if tamil_model is not None else settings.asr_tamil_model).strip()
+        if not self._expects_tamil():
+            self.tamil_model_name = ""
+        self.tamil_failed: str | None = None
         self._model: Any | None = None
+        self._tamil_model: Any | None = None
 
     def _expects_indic(self) -> bool:
         if self.fixed_language:
             return self.fixed_language != "en"
         return any(language != "en" for language in self.languages) or not self.languages
+
+    def _expects_tamil(self) -> bool:
+        if self.fixed_language:
+            return self.fixed_language == "ta"
+        return "ta" in self.languages or not self.languages
 
     def _load(self) -> Any:
         if self._model is None:
@@ -196,6 +218,27 @@ class FasterWhisperProvider(ASRProvider):
                 self.model_name, self.device, self.compute_type
             )
         return self._model
+
+    def _tamil(self) -> Any | None:
+        """The Tamil-trained model, or ``None`` when unset or it failed to load."""
+        if not self.tamil_model_name or self.tamil_failed:
+            return None
+        if self._tamil_model is None:
+            from pathlib import Path
+
+            from app.core.config import BACKEND_ROOT
+
+            name = self.tamil_model_name
+            local = Path(name) if Path(name).is_absolute() else BACKEND_ROOT / name
+            try:
+                self._tamil_model, _device, _compute = load_whisper_model(
+                    str(local) if local.is_dir() else name, self.device, self.compute_type
+                )
+            except Exception as exc:  # noqa: BLE001 - the main model still works
+                self.tamil_failed = str(exc) or type(exc).__name__
+                logger.exception("asr_tamil_model_failed", extra={"model": name})
+                return None
+        return self._tamil_model
 
     async def warmup(self) -> None:  # pragma: no cover - requires model download
         await asyncio.to_thread(self._load)
@@ -242,7 +285,12 @@ class FasterWhisperProvider(ASRProvider):
                     reason = "second recogniser returned nothing usable"
 
             if source == "whisper":
-                segments, prompt = self._decode_whisper(model, piece, language)
+                tamil_model = self._tamil() if language == "ta" and english_share < _ENGLISH_HEAVY else None
+                if tamil_model is not None:
+                    segments, prompt = self._decode_whisper(tamil_model, piece, "ta", tamil_trained=True)
+                    source, reason = "tamil_whisper", "Tamil utterance"
+                else:
+                    segments, prompt = self._decode_whisper(model, piece, language)
                 raw_text = " ".join((segment.text or "").strip() for segment in segments).strip()
                 problem = whisper_problem(raw_text, language, duration, self._quality(segments))
                 if problem == "garbled Tamil":
@@ -288,21 +336,28 @@ class FasterWhisperProvider(ASRProvider):
             )
         return results
 
-    def _decode_whisper(self, model: Any, piece: Any, language: str | None) -> tuple[list[Any], str | None]:
-        prompt = self._prompt_for(language)
+    def _decode_whisper(
+        self, model: Any, piece: Any, language: str | None, tamil_trained: bool = False
+    ) -> tuple[list[Any], str | None]:
+        # The Tamil-trained model was fine-tuned on plain Tamil transcripts without
+        # timestamps; the code-mixed style prompt and timestamp tokens only hurt it.
+        prompt = None if tamil_trained and not _TAMIL_MODEL_PROMPT else self._prompt_for(language)
         # Tamil / Hindi need a wider beam than English; turbo is otherwise too greedy.
-        beam = max(settings.asr_beam_size, 5) if language in ("ta", "hi", "te", "ml") else settings.asr_beam_size
+        # The Tamil-trained model scored the same at beam 2 as at 5, so it keeps the setting.
+        wide = language in ("ta", "hi", "te", "ml") and not tamil_trained
+        beam = max(settings.asr_beam_size, 5) if wide else settings.asr_beam_size
         segments, _info = model.transcribe(
             piece,
             language=language,
             task="transcribe",
             beam_size=beam,
             vad_filter=False,
-            word_timestamps=True,
+            without_timestamps=tamil_trained and not _TAMIL_MODEL_TIMESTAMPS,
+            word_timestamps=not tamil_trained or _TAMIL_MODEL_TIMESTAMPS,
             condition_on_previous_text=False,
             initial_prompt=prompt,
             temperature=list(_TEMPERATURES),
-            compression_ratio_threshold=2.4,
+            compression_ratio_threshold=compression_limit(language),
             log_prob_threshold=-1.0,
             no_speech_threshold=0.6,
             repetition_penalty=1.05,
@@ -462,6 +517,12 @@ class FasterWhisperProvider(ASRProvider):
             "language_mode": self.fixed_language or "per-utterance (code-switching)",
             "loaded": any(key[0] == self.model_name for key in _MODELS),
             "second_pass": self.second_pass.describe() if self.second_pass else None,
+            "tamil_model": (
+                {"model": self.tamil_model_name, "status": "failed" if self.tamil_failed else (
+                    "loaded" if self._tamil_model is not None else "not_loaded"), "error": self.tamil_failed}
+                if self.tamil_model_name
+                else None
+            ),
         }
 
     @staticmethod

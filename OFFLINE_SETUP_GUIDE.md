@@ -13,6 +13,7 @@ Mic / upload WAV (16 kHz mono)
         ▼
 2. Speech-to-text      Faster-Whisper large-v3-turbo, int8, **CPU**
                        Multilingual (Hindi / Tamil / English / mixed).
+                       Tamil utterances → Tamil-trained Whisper small (IIT Madras)
         │
         ▼
 3. Speakers            Neural speaker embeddings (sherpa-onnx, 26 MB) — CPU
@@ -71,8 +72,9 @@ voice is **Patient**. The backend log shows `doctor_voice_enrolled` on startup.
 | `LOCAL_LLM_MODEL` | `gemma4:e4b` | Note model on GPU |
 | `LOCAL_LLM_FALLBACK_MODELS` | `gemma4:e2b` | Tried if the primary is missing or returns unusable JSON |
 | `ASR_PROVIDER` | `faster_whisper` | CTranslate2 Whisper |
-| `FASTER_WHISPER_MODEL` | `large-v3-turbo` | Multilingual, including mixed Indian + English. `large-v3` is more accurate for Tamil but ~2x slower on CPU. Do not use `small`/`base` for Tamil |
+| `FASTER_WHISPER_MODEL` | `large-v3-turbo` | Multilingual, including mixed Indian + English. `large-v3` is more accurate for Tamil but ~2x slower on CPU. Do not set this to `small`/`base` (generic Whisper small is poor at Tamil; the Tamil-trained small goes in `ASR_TAMIL_MODEL`) |
 | `ASR_SECOND_PASS` | `indic_conformer` | Tamil/Hindi-heavy utterances go to AI4Bharat IndicConformer, far better than Whisper on Tamil. Packages in `backend/requirements-indic.txt` (installer adds them) and a `HUGGINGFACE_TOKEN` that accepted the model terms, needed only for the one-time download; falls back to Whisper if it cannot load |
+| `ASR_TAMIL_MODEL` | `models/asr/whisper-tamil-small-ct2` | Tamil-trained Whisper (IIT Madras) for Tamil utterances; English-heavy ones stay on turbo. Half turbo's word errors on Tamil test clips, ~3x faster than real time on CPU. `whisper-tamil-medium-ct2` is ~10% more accurate but barely real time on CPU. The installer converts it; blank = turbo only |
 | `ASR_LANGUAGES` | `ta,hi,en` | Language is detected per utterance among these only (Tanglish / Hinglish code-switching) |
 | `INDIC_ASR_LANGUAGE` | `code_switching` | `code_switching`/`auto` = per-utterance detection; a code like `ta` forces one language |
 | `ASR_DEVICE` | `cpu` | Leaves VRAM for Gemma 4. `auto`/`cuda` only on an 8 GB+ GPU with CUDA 12 + cuDNN 9 DLLs |

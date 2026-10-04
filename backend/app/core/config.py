@@ -145,6 +145,10 @@ class Settings(BaseSettings):
     # Replaces the built-in style prompts when set. Keep drugs, symptoms and numbers
     # out of it: Whisper copies prompt words into the transcript.
     indic_asr_prompt_biasing: str = ""
+    # Tamil-trained Whisper (CTranslate2 folder relative to backend/, or a Hugging
+    # Face id) that decodes utterances detected as Tamil; the main model keeps the
+    # English-heavy ones. Blank = the main model decodes everything.
+    asr_tamil_model: str = ""
     # Second recogniser for Indian-language utterances: "indic_conformer" runs
     # AI4Bharat IndicConformer-600M next to Whisper and keeps the better hypothesis.
     # Whisper alone is weak on Tamil; if the conformer cannot load, Whisper is used.

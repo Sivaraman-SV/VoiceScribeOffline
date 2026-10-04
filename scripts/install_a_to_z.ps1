@@ -337,6 +337,38 @@ print('INDIC_OK')
     }
 }
 
+# Tamil-trained Whisper (ASR_TAMIL_MODEL), converted once to CTranslate2 so it
+# runs on CPU with no PyTorch at runtime. Source: IIT Madras SPRING Lab
+# (vasista22/whisper-tamil-*, Apache-2.0).
+$tamilRel = Get-EnvSetting "ASR_TAMIL_MODEL" ""
+if ($tamilRel -match "whisper-tamil-(small|medium|large-v2)-ct2") {
+    $tamilDir = Join-Path $Backend $tamilRel
+    $tamilSource = "vasista22/whisper-tamil-" + $Matches[1]
+    if (-not (Test-Path (Join-Path $tamilDir "model.bin"))) {
+        Write-Host "  Converting $tamilSource for Tamil speech (one time, downloads a few GB)..."
+        & $VenvPip install -r (Join-Path $Backend "requirements-indic.txt") | Out-Null
+        $convertCache = Join-Path $Backend "models\hf-convert"
+        $env:HF_HOME = $convertCache
+        & (Join-Path $Backend ".venv\Scripts\ct2-transformers-converter.exe") --model $tamilSource `
+            --output_dir $tamilDir --quantization float16 --copy_files preprocessor_config.json --force
+        $converted = $LASTEXITCODE -eq 0
+        if ($converted) {
+            & $VenvPython -c "from transformers import WhisperTokenizerFast; WhisperTokenizerFast.from_pretrained('$tamilSource').save_pretrained(r'$tamilDir')"
+            $converted = $LASTEXITCODE -eq 0
+        }
+        Remove-Item Env:\HF_HOME -ErrorAction SilentlyContinue
+        Remove-Item $convertCache -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not $converted) {
+            Remove-Item $tamilDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if (Test-Path (Join-Path $tamilDir "tokenizer.json")) {
+        Write-Ok "Tamil speech model ready ($tamilSource)"
+    } else {
+        Write-Warn "Tamil model conversion failed; Tamil goes to the main Whisper model. Rerun the installer to retry."
+    }
+}
+
 & $VenvPython -c "import asyncio; from app.core.database import init_database, dispose_database; asyncio.run(init_database()); asyncio.run(dispose_database()); print('DB_OK')"
 Write-Ok "SQLite schema ready"
 

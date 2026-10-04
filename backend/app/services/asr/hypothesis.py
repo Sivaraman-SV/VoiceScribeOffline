@@ -47,6 +47,14 @@ _LANGUAGE_SCRIPTS: dict[str, frozenset[str]] = {
 # have come from the audio.
 _MAX_CHARS_PER_SECOND = 28.0
 _MAX_COMPRESSION_RATIO = 2.4
+# Whisper measures compression on UTF-8 bytes. Indian scripts take three bytes a
+# letter with a near-constant lead pair, so clean Tamil compresses far more than
+# English: a fifth of correct Tamil sentences in FLEURS / dialect speech pass 2.4
+# (highest 3.5), while a phrase repeated three or four times lands around 4.
+_MAX_COMPRESSION_RATIO_INDIC = 3.6
+_INDIC_SCRIPTS = frozenset(
+    {"devanagari", "bengali", "gurmukhi", "gujarati", "odia", "tamil", "telugu", "kannada", "malayalam"}
+)
 _MIN_AVG_LOGPROB = -1.0
 _MAX_FOREIGN_SCRIPT_SHARE = 0.2
 
@@ -75,6 +83,20 @@ def foreign_script_share(text: str, language: str | None) -> float:
         return 0.0
     foreign = sum(1 for char in letters if _script_of(char) not in allowed)
     return foreign / len(letters)
+
+
+def compression_limit(language: str | None, text: str | None = None) -> float:
+    """Highest Whisper compression ratio that is still ordinary speech.
+
+    Judged by the script of ``text`` when given, otherwise by ``language``.
+    """
+    if text is not None:
+        letters = [char for char in text if char.isalpha()]
+        indic = sum(1 for char in letters if _script_of(char) in _INDIC_SCRIPTS)
+        uses_indic = bool(letters) and indic / len(letters) >= 0.5
+    else:
+        uses_indic = bool(_LANGUAGE_SCRIPTS.get(language or "", frozenset()) & _INDIC_SCRIPTS)
+    return _MAX_COMPRESSION_RATIO_INDIC if uses_indic else _MAX_COMPRESSION_RATIO
 
 
 def _has_repetition_loop(text: str) -> bool:
@@ -136,11 +158,13 @@ _KNOWN_TAMIL = (
 
 
 def tamil_is_garbled(text: str) -> bool:
-    """True when Tamil-script output has no real words and too many virama clusters.
+    """True when Tamil-script output contains spellings no Tamil word can have.
 
-    Turbo Whisper often emits Tamil letters that look plausible at a glance
-    (lots of ், almost no readable words). That text should be rejected so
-    IndicConformer or a second decode can replace it.
+    Turbo Whisper sometimes emits Tamil letters that look plausible at a glance
+    but stack vowel signs and viramas illegally. That text should be rejected so
+    IndicConformer or a second decode can replace it. Letter-ratio rules are not
+    used: virama-heavy formal Tamil looks the same as this soup by ratio, and such
+    a rule rejected a third of correct human transcripts (FLEURS / dialect speech).
     """
     letters = [char for char in text if 0x0B80 <= ord(char) <= 0x0BFF]
     if len(letters) < 8:
@@ -155,13 +179,10 @@ def tamil_is_garbled(text: str) -> bool:
         return True
     virama = sum(1 for char in letters if char == _TAMIL_VIRAMA)
     vowels = sum(1 for char in letters if char in _TAMIL_VOWEL_SIGNS or char in _TAMIL_INDEPENDENT)
-    consonants = len(letters) - virama - vowels
-    if consonants <= 0:
+    if len(letters) - virama - vowels <= 0:
         return True
     jammed_latin = bool(re.search(r"[A-Za-z]{7,}", text.replace(" ", "")))
-    return (virama / len(letters) >= 0.16 and vowels / consonants < 0.55) or (
-        len(letters) >= 16 and jammed_latin
-    )
+    return len(letters) >= 16 and jammed_latin
 
 
 def whisper_problem(text: str, language: str | None, duration: float, quality: DecodeQuality) -> str | None:
@@ -169,7 +190,7 @@ def whisper_problem(text: str, language: str | None, duration: float, quality: D
     text = (text or "").strip()
     if not text:
         return "no speech recognised" if duration >= 2.0 else None
-    if quality.compression_ratio > _MAX_COMPRESSION_RATIO or _has_repetition_loop(text):
+    if quality.compression_ratio > compression_limit(language, text) or _has_repetition_loop(text):
         return "repetition loop"
     if duration > 0 and len(text.replace(" ", "")) / duration > _MAX_CHARS_PER_SECOND:
         return "more text than the audio could contain"
